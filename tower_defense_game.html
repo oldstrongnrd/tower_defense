@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tower Defense Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            font-family: 'Arial', sans-serif;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+        }
+
+        #gameContainer {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        #gameCanvas {
+            border: 3px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            background: #2d5a27;
+        }
+
+        #gameUI {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            min-width: 200px;
+        }
+
+        .tower-button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .tower-button:hover {
+            background: linear-gradient(45deg, #45a049, #4CAF50);
+            transform: translateY(-2px);
+        }
+
+        .tower-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #gameStats {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+
+        #waveButton {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #waveButton:hover {
+            background: linear-gradient(45deg, #ee5a52, #ff6b6b);
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🏰 Tower Defense</h1>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+        <div id="gameUI">
+            <div id="gameStats">
+                <div class="stat">
+                    <span>💰 Gold:</span>
+                    <span id="goldDisplay">400</span>
+                </div>
+                <div class="stat">
+                    <span>❤️ Lives:</span>
+                    <span id="livesDisplay">20</span>
+                </div>
+                <div class="stat">
+                    <span>🌊 Wave:</span>
+                    <span id="waveDisplay">1</span>
+                </div>
+                <div class="stat">
+                    <span>👹 Enemies:</span>
+                    <span id="enemiesDisplay">0</span>
+                </div>
+                <div class="stat">
+                    <span>⚔️ Difficulty:</span>
+                    <span id="difficultyDisplay">Easy</span>
+                </div>
+            </div>
+
+            <h3>🏗️ Build Towers</h3>
+            <button class="tower-button" id="wizardTower" onclick="selectTower('wizard')">
+                🧙‍♂️ Elemental Wizard (80g)
+            </button>
+            <button class="tower-button" id="archerTower" onclick="selectTower('archer')">
+                🏹 Elven Archer (60g)
+            </button>
+            <button class="tower-button" id="ninjaTower" onclick="selectTower('ninja')">
+                🥷 Shadow Ninja (90g)
+            </button>
+            <button class="tower-button" id="cannonTower" onclick="selectTower('cannon')">
+                💎 Crystal Cannon (120g)
+            </button>
+
+            <div id="upgradeSection"
+                style="display: none; margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.5); border-radius: 5px;">
+                <h4>⬆️ Upgrade Hero</h4>
+                <div id="selectedTowerInfo"></div>
+                <button class="tower-button" id="upgradeButton" onclick="upgradeTower()">
+                    Upgrade (Cost: 0g)
+                </button>
+                <button class="tower-button" onclick="deselectTower()" style="background: #666;">
+                    Cancel
+                </button>
+            </div>
+
+            <button id="waveButton" class="tower-button" onclick="startWave()">
+                🚀 Start Wave
+            </button>
+
+            <div style="margin-top: 20px; font-size: 11px; opacity: 0.8;">
+                <p>💡 <strong>How to Play:</strong></p>
+                <p>• Click a hero type, then click to summon</p>
+                <p>• Click heroes to upgrade (4 levels max)</p>
+                <p>• Defend against increasingly powerful waves</p>
+                <p>• Each enemy type has unique abilities!</p>
+
+                <p><strong>🏹 Enemy Types:</strong></p>
+                <p>👾 Goblin - Basic enemy</p>
+                <p>🏃 Scout - Fast with speed bursts</p>
+                <p>🛡️ Armored Orc - High health, armor</p>
+                <p>🦅 Wyvern - Flying, magic resistant</p>
+                <p>🧟 Troll - Regenerates health</p>
+                <p>🥷 Shadow Assassin - Stealth, dodge</p>
+                <p>👹 Demon Lord - Boss with aura</p>
+
+                <p><strong>🏗️ Towers:</strong></p>
+                <p>🧙‍♂️ Elemental Wizard - Multi-spell caster</p>
+                <p>• Level 1: 🔥 Fire spells</p>
+                <p>• Level 2: 🔥❄️ Fire + Ice spells</p>
+                <p>• Level 3+: 🔥❄️⚡ All elements</p>
+                <p>🏹 Elven Archer - Long range, piercing</p>
+                <p>🥷 Shadow Ninja - Critical strikes</p>
+                <p>💎 Crystal Cannon - Slow, massive damage</p>
+                <p>• Ignores all defenses</p>
+                <p>• Area explosion damage</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let game = {
+            gold: 400,
+            lives: 100,
+            wave: 1,
+            selectedTowerType: null,
+            selectedTowerInstance: null,
+            gameRunning: false,
+            waveActive: false
+        };
+
+        let towers = [];
+        let enemies = [];
+        let projectiles = [];
+
+        // Game path (simple S-curve)
+        const path = [
+            { x: 50, y: 300 },
+            { x: 200, y: 300 },
+            { x: 300, y: 200 },
+            { x: 500, y: 200 },
+            { x: 600, y: 400 },
+            { x: 750, y: 400 }
+        ];
+
+        // Tower Types with Upgrade Levels
+        const towerTypes = {
+            wizard: {
+                name: "🧙‍♂️ Elemental Wizard",
+                baseCost: 70,
+                upgrades: [
+                    {
+                        damage: 30, range: 100, fireRate: 1000,
+                        color: '#FF6B35', projectileColor: '#FF4500',
+                        spells: ['fire'], description: 'Fire Magic'
+                    },
+                    {
+                        damage: 45, range: 110, fireRate: 900,
+                        color: '#4B0082', projectileColor: '#8A2BE2',
+                        spells: ['fire', 'ice'], description: 'Fire + Ice Magic'
+                    },
+                    {
+                        damage: 70, range: 120, fireRate: 800,
+                        color: '#800080', projectileColor: '#9932CC',
+                        spells: ['fire', 'ice', 'lightning'], description: 'Tri-Elemental Master'
+                    },
+                    {
+                        damage: 110, range: 140, fireRate: 700,
+                        color: '#4B0082', projectileColor: '#FFD700',
+                        spells: ['fire', 'ice', 'lightning'], description: 'Archmage'
+                    }
+                ]
+            },
+            archer: {
+                name: "🏹 Elven Archer",
+                baseCost: 50,
+                upgrades: [
+                    { damage: 25, range: 120, fireRate: 800, color: '#228B22', projectileColor: '#32CD32', effect: 'pierce' },
+                    { damage: 40, range: 140, fireRate: 700, color: '#006400', projectileColor: '#00FF00', effect: 'pierce' },
+                    { damage: 65, range: 160, fireRate: 600, color: '#2E8B57', projectileColor: '#ADFF2F', effect: 'pierce' },
+                    { damage: 100, range: 180, fireRate: 500, color: '#8FBC8F', projectileColor: '#7FFF00', effect: 'pierce' }
+                ]
+            },
+            ninja: {
+                name: "🥷 Shadow Ninja",
+                baseCost: 80,
+                upgrades: [
+                    { damage: 35, range: 70, fireRate: 600, color: '#2F2F2F', projectileColor: '#C0C0C0', effect: 'critical' },
+                    { damage: 55, range: 80, fireRate: 550, color: '#1C1C1C', projectileColor: '#E6E6FA', effect: 'critical' },
+                    { damage: 85, range: 90, fireRate: 500, color: '#0D0D0D', projectileColor: '#F0F8FF', effect: 'critical' },
+                    { damage: 130, range: 100, fireRate: 450, color: '#000000', projectileColor: '#FFFFFF', effect: 'critical' }
+                ]
+            },
+            cannon: {
+                name: "💎 Crystal Cannon",
+                baseCost: 100,
+                upgrades: [
+                    {
+                        damage: 80, range: 90, fireRate: 2500,
+                        color: '#E6E6FA', projectileColor: '#9370DB',
+                        effect: 'crystal', description: 'Crystal Shard'
+                    },
+                    {
+                        damage: 130, range: 100, fireRate: 2300,
+                        color: '#DDA0DD', projectileColor: '#8B008B',
+                        effect: 'crystal', description: 'Refined Crystal'
+                    },
+                    {
+                        damage: 200, range: 110, fireRate: 2100,
+                        color: '#DA70D6', projectileColor: '#FF1493',
+                        effect: 'crystal', description: 'Pure Crystal'
+                    },
+                    {
+                        damage: 320, range: 120, fireRate: 1900,
+                        color: '#FF69B4', projectileColor: '#FF00FF',
+                        effect: 'crystal', description: 'Master Crystal'
+                    }
+                ]
+            }
+        };
+
+        // Enemy Types with scaling progression
+        const enemyTypes = {
+            basic: {
+                name: "👾 Goblin",
+                baseHealth: 50,
+                baseSpeed: 1.0,
+                baseReward: 18,
+                color: '#FF6B6B',
+                size: 12,
+                abilities: []
+            },
+            fast: {
+                name: "🏃 Scout",
+                baseHealth: 30,
+                baseSpeed: 1.8,
+                baseReward: 22,
+                color: '#FFD700',
+                size: 10,
+                abilities: ['speed_boost']
+            },
+            heavy: {
+                name: "🛡️ Armored Orc",
+                baseHealth: 120,
+                baseSpeed: 0.6,
+                baseReward: 35,
+                color: '#8B4513',
+                size: 16,
+                abilities: ['armor']
+            },
+            flying: {
+                name: "🦅 Wyvern",
+                baseHealth: 80,
+                baseSpeed: 1.2,
+                baseReward: 40,
+                color: '#9370DB',
+                size: 14,
+                abilities: ['flying', 'magic_resist']
+            },
+            regenerating: {
+                name: "🧟 Troll",
+                baseHealth: 100,
+                baseSpeed: 0.8,
+                baseReward: 45,
+                color: '#228B22',
+                size: 15,
+                abilities: ['regeneration']
+            },
+            ninja_enemy: {
+                name: "🥷 Shadow Assassin",
+                baseHealth: 60,
+                baseSpeed: 1.4,
+                baseReward: 50,
+                color: '#2F2F2F',
+                size: 11,
+                abilities: ['stealth', 'dodge', 'backstab']
+            },
+            boss: {
+                name: "👹 Demon Lord",
+                baseHealth: 300,
+                baseSpeed: 0.7,
+                baseReward: 150,
+                color: '#8B0000',
+                size: 20,
+                abilities: ['boss_aura', 'magic_resist', 'armor']
+            }
+        };
+
+        // Enemy class
+        class Enemy {
+            constructor(type, wave) {
+                this.type = type;
+                this.enemyData = enemyTypes[type];
+
+                // Scale stats based on wave
+                const waveMultiplier = 1 + (wave * 0.12); // 12% increase per wave
+                const healthMultiplier = 1 + (wave * 0.15); // 15% health increase per wave
+
+                this.health = Math.floor(this.enemyData.baseHealth * healthMultiplier);
+                this.maxHealth = this.health;
+                this.speed = this.enemyData.baseSpeed * Math.min(waveMultiplier, 2.5); // Cap speed at 2.5x
+                this.reward = Math.floor(this.enemyData.baseReward * (1 + wave * 0.1));
+
+                // Position and movement
+                this.pathIndex = 0;
+                this.x = path[0].x;
+                this.y = path[0].y;
+                this.progress = 0;
+
+                // Status effects
+                this.slowEffect = 0;
+                this.burnEffect = 0;
+                this.stunEffect = 0;
+
+                // Special abilities
+                this.abilities = [...this.enemyData.abilities];
+                this.regenerationTimer = 0;
+                this.speedBoostTimer = 0;
+                this.armor = this.abilities.includes('armor') ? Math.floor(wave * 0.5) : 0;
+                this.magicResist = this.abilities.includes('magic_resist') ? 0.3 + (wave * 0.02) : 0;
+
+                // Ninja abilities
+                this.stealthTimer = 0;
+                this.isStealthed = false;
+                this.dodgeChance = this.abilities.includes('dodge') ? 0.25 + (wave * 0.01) : 0;
+                this.backstabReady = this.abilities.includes('backstab');
+
+                // Animation
+                this.animationFrame = 0;
+            }
+
+            update() {
+                if (this.pathIndex >= path.length - 1) return false;
+
+                this.animationFrame++;
+
+                // Handle stun effect
+                if (this.stunEffect > 0) {
+                    this.stunEffect--;
+                    return true; // Can't move while stunned
+                }
+
+                // Apply burn damage (reduced by magic resistance)
+                if (this.burnEffect > 0) {
+                    const burnDamage = 0.8 * (1 - this.magicResist);
+                    this.health -= burnDamage;
+                    this.burnEffect--;
+                    if (this.health <= 0) {
+                        game.gold += this.reward;
+                        return false;
+                    }
+                }
+
+                // Regeneration ability
+                if (this.abilities.includes('regeneration')) {
+                    this.regenerationTimer++;
+                    if (this.regenerationTimer >= 60) { // Every second
+                        this.health = Math.min(this.health + (this.maxHealth * 0.02), this.maxHealth);
+                        this.regenerationTimer = 0;
+                    }
+                }
+
+                // Ninja stealth ability
+                if (this.abilities.includes('stealth')) {
+                    this.stealthTimer++;
+                    if (this.stealthTimer >= 300) { // Every 5 seconds
+                        this.isStealthed = true;
+                        this.stealthTimer = 0;
+                    }
+                    if (this.isStealthed && this.stealthTimer >= 120) { // Stealth lasts 2 seconds
+                        this.isStealthed = false;
+                    }
+                }
+
+                // Speed boost ability (for scouts)
+                let currentSpeed = this.speed;
+                if (this.abilities.includes('speed_boost')) {
+                    this.speedBoostTimer++;
+                    if (this.speedBoostTimer >= 180 && this.speedBoostTimer < 240) { // Boost for 1 second every 3 seconds
+                        currentSpeed *= 2;
+                    }
+                    if (this.speedBoostTimer >= 240) {
+                        this.speedBoostTimer = 0;
+                    }
+                }
+
+                // Apply slow effect
+                if (this.slowEffect > 0) {
+                    const slowReduction = this.abilities.includes('magic_resist') ? 0.6 : 0.4;
+                    currentSpeed *= slowReduction;
+                    this.slowEffect--;
+                }
+
+                // Boss aura effect (makes nearby enemies faster)
+                if (this.abilities.includes('boss_aura')) {
+                    for (let enemy of enemies) {
+                        if (enemy !== this) {
+                            const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
+                            if (distance <= 80) {
+                                enemy.speed = Math.min(enemy.speed * 1.001, enemy.enemyData.baseSpeed * 2);
+                            }
+                        }
+                    }
+                }
+
+                const current = path[this.pathIndex];
+                const next = path[this.pathIndex + 1];
+
+                const dx = next.x - current.x;
+                const dy = next.y - current.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                this.progress += currentSpeed / distance;
+
+                if (this.progress >= 1) {
+                    this.pathIndex++;
+                    this.progress = 0;
+
+                    if (this.pathIndex >= path.length - 1) {
+                        // Boss enemies cause extra damage when they reach the end
+                        const livesLost = this.abilities.includes('boss_aura') ? 5 : 1;
+                        game.lives -= livesLost;
+                        return false;
+                    }
+                }
+
+                const current2 = path[this.pathIndex];
+                const next2 = path[this.pathIndex + 1];
+
+                this.x = current2.x + (next2.x - current2.x) * this.progress;
+                this.y = current2.y + (next2.y - current2.y) * this.progress;
+
+                return true;
+            }
+
+            draw() {
+                const size = this.enemyData.size + Math.floor(game.wave * 0.3); // Grow with waves
+
+                // Enemy body with effects and type-specific colors
+                let bodyColor = this.enemyData.color;
+                if (this.burnEffect > 0) {
+                    bodyColor = '#FF4500'; // Burning orange
+                } else if (this.slowEffect > 0) {
+                    bodyColor = '#87CEEB'; // Frozen blue
+                } else if (this.stunEffect > 0) {
+                    bodyColor = '#FFD700'; // Stunned gold
+                }
+
+                // Special aura for boss enemies
+                if (this.abilities.includes('boss_aura')) {
+                    const auraSize = size + Math.sin(this.animationFrame * 0.1) * 4;
+                    ctx.fillStyle = 'rgba(139, 0, 0, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, auraSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Flying enemies have a shadow
+                if (this.abilities.includes('flying')) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(this.x + 2, this.y + 8, size * 0.8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Main enemy body (with stealth transparency)
+                ctx.fillStyle = bodyColor;
+                if (this.isStealthed) {
+                    ctx.globalAlpha = 0.3; // Make stealthed enemies nearly invisible
+                }
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1; // Reset alpha
+
+                // Armor indicator for armored enemies
+                if (this.abilities.includes('armor') && this.armor > 0) {
+                    ctx.strokeStyle = '#C0C0C0';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, size + 2, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Enemy type emoji
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = `${Math.max(10, size - 2)}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                let emoji = '👾'; // Default
+                switch (this.type) {
+                    case 'basic': emoji = '👾'; break;
+                    case 'fast': emoji = '🏃'; break;
+                    case 'heavy': emoji = '🛡️'; break;
+                    case 'flying': emoji = '🦅'; break;
+                    case 'regenerating': emoji = '🧟'; break;
+                    case 'ninja_enemy': emoji = '🥷'; break;
+                    case 'boss': emoji = '👹'; break;
+                }
+
+                const yOffset = this.abilities.includes('flying') ? -3 : 0;
+                ctx.fillText(emoji, this.x, this.y + yOffset);
+
+                // Effect indicators
+                let effectX = this.x + size + 8;
+                if (this.burnEffect > 0) {
+                    ctx.fillText('🔥', effectX, this.y - 15);
+                    effectX += 15;
+                }
+                if (this.slowEffect > 0) {
+                    ctx.fillText('❄️', effectX, this.y - 15);
+                    effectX += 15;
+                }
+                if (this.stunEffect > 0) {
+                    ctx.fillText('⚡', effectX, this.y - 15);
+                    effectX += 15;
+                }
+                if (this.abilities.includes('regeneration') && this.regenerationTimer > 45) {
+                    ctx.fillText('💚', effectX, this.y - 15);
+                }
+                if (this.abilities.includes('speed_boost') && this.speedBoostTimer >= 180 && this.speedBoostTimer < 240) {
+                    ctx.fillText('💨', this.x - size - 8, this.y - 15);
+                }
+                if (this.isStealthed) {
+                    ctx.fillText('👻', this.x, this.y - size - 20);
+                }
+
+                // Health bar with armor indicator
+                const barWidth = Math.max(24, size * 1.5);
+                const barHeight = 4;
+                const healthPercent = this.health / this.maxHealth;
+
+                // Background
+                ctx.fillStyle = '#FF0000';
+                ctx.fillRect(this.x - barWidth / 2, this.y - size - 12, barWidth, barHeight);
+
+                // Health
+                ctx.fillStyle = '#00FF00';
+                ctx.fillRect(this.x - barWidth / 2, this.y - size - 12, barWidth * healthPercent, barHeight);
+
+                // Armor bar (if applicable)
+                if (this.armor > 0) {
+                    ctx.fillStyle = '#C0C0C0';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - size - 8, barWidth, 2);
+                }
+
+                // Magic resistance indicator
+                if (this.magicResist > 0) {
+                    ctx.fillStyle = '#9370DB';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - size - 6, barWidth * this.magicResist, 1);
+                }
+            }
+
+            takeDamage(damage, effect = null, isMagical = false, ignoreDefenses = false) {
+                // Ninja dodge ability (unless defenses are ignored)
+                if (!ignoreDefenses && this.abilities.includes('dodge') && Math.random() < this.dodgeChance) {
+                    return false; // Dodged the attack completely
+                }
+
+                // Stealth provides damage reduction (unless defenses are ignored)
+                let stealthReduction = (!ignoreDefenses && this.isStealthed) ? 0.5 : 1;
+
+                let finalDamage = damage * stealthReduction;
+
+                // Apply armor reduction (physical damage only, unless defenses are ignored)
+                if (!ignoreDefenses && !isMagical && this.armor > 0) {
+                    finalDamage = Math.max(1, finalDamage - this.armor);
+                }
+
+                // Apply magic resistance (magical damage only, unless defenses are ignored)
+                if (!ignoreDefenses && isMagical && this.magicResist > 0) {
+                    finalDamage = finalDamage * (1 - this.magicResist);
+                }
+
+                this.health -= finalDamage;
+
+                // Break stealth when taking damage
+                if (this.isStealthed) {
+                    this.isStealthed = false;
+                    this.stealthTimer = 0;
+                }
+
+                // Apply effects based on damage type and resistance
+                if (effect) {
+                    switch (effect) {
+                        case 'freeze':
+                            const freezeResist = this.abilities.includes('magic_resist') ? 0.5 : 1;
+                            this.slowEffect = Math.floor(90 * freezeResist); // 1.5 seconds base
+                            break;
+                        case 'burn':
+                            const burnResist = this.abilities.includes('magic_resist') ? 0.5 : 1;
+                            this.burnEffect = Math.floor(120 * burnResist); // 2 seconds base
+                            break;
+                        case 'stun':
+                            if (!this.abilities.includes('boss_aura')) { // Bosses immune to stun
+                                this.stunEffect = 30; // 0.5 seconds
+                            }
+                            break;
+                    }
+                }
+
+                if (this.health <= 0) {
+                    game.gold += this.reward;
+                    return true; // Enemy destroyed
+                }
+                return false;
+            }
+        }
+
+        // Tower class
+        class Tower {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.level = 0; // 0-3 (4 upgrade levels)
+                this.stats = towerTypes[type].upgrades[this.level];
+                this.lastFire = 0;
+                this.target = null;
+                this.animationFrame = 0;
+                this.isSelected = false;
+            }
+
+            update() {
+                this.animationFrame++;
+
+                // Find target
+                this.target = null;
+                let closestDistance = this.stats.range;
+
+                for (let enemy of enemies) {
+                    const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
+                    if (distance <= closestDistance) {
+                        this.target = enemy;
+                        closestDistance = distance;
+                    }
+                }
+
+                // Fire at target
+                if (this.target && Date.now() - this.lastFire > this.stats.fireRate) {
+                    this.fire();
+                    this.lastFire = Date.now();
+                }
+            }
+
+            upgrade() {
+                if (this.level < 3) {
+                    const upgradeCost = this.getUpgradeCost();
+                    if (game.gold >= upgradeCost) {
+                        game.gold -= upgradeCost;
+                        this.level++;
+                        this.stats = towerTypes[this.type].upgrades[this.level];
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            getUpgradeCost() {
+                if (this.level >= 3) return 0;
+                const baseCost = towerTypes[this.type].baseCost;
+                return Math.floor(baseCost * (1.5 ** (this.level + 1)));
+            }
+
+            canUpgrade() {
+                return this.level < 3 && game.gold >= this.getUpgradeCost();
+            }
+
+            fire() {
+                if (!this.target) return;
+
+                let damage = this.stats.damage;
+                let projectile;
+
+                if (this.type === 'wizard') {
+                    // Wizard cycles through available spells
+                    const spells = this.stats.spells || ['fire'];
+                    const spellIndex = Math.floor(this.animationFrame / 60) % spells.length;
+                    const currentSpell = spells[spellIndex];
+
+                    let spellColor, spellEffect;
+                    switch (currentSpell) {
+                        case 'fire':
+                            spellColor = '#FF4500';
+                            spellEffect = 'fire';
+                            break;
+                        case 'ice':
+                            spellColor = '#00BFFF';
+                            spellEffect = 'freeze';
+                            break;
+                        case 'lightning':
+                            spellColor = '#9932CC';
+                            spellEffect = 'chain';
+                            break;
+                        default:
+                            spellColor = this.stats.projectileColor;
+                            spellEffect = 'fire';
+                    }
+
+                    projectile = {
+                        x: this.x,
+                        y: this.y,
+                        targetX: this.target.x,
+                        targetY: this.target.y,
+                        target: this.target,
+                        damage: damage,
+                        color: spellColor,
+                        effect: spellEffect,
+                        speed: 10,
+                        tower: this,
+                        spellType: currentSpell
+                    };
+
+                    // Chain lightning targets for wizard
+                    if (spellEffect === 'chain') {
+                        projectile.chainTargets = this.findChainTargets();
+                    }
+                } else if (this.type === 'ninja') {
+                    // Ninja critical strike ability
+                    let isCritical = false;
+                    const critChance = 0.2 + (this.level * 0.1); // 20-50% crit chance
+                    if (Math.random() < critChance) {
+                        damage *= (2 + this.level * 0.5); // 2x-4x critical damage
+                        isCritical = true;
+                    }
+
+                    projectile = {
+                        x: this.x,
+                        y: this.y,
+                        targetX: this.target.x,
+                        targetY: this.target.y,
+                        target: this.target,
+                        damage: damage,
+                        color: isCritical ? '#FFD700' : this.stats.projectileColor,
+                        effect: this.stats.effect,
+                        speed: 12, // Ninja projectiles are faster
+                        tower: this,
+                        isCritical: isCritical
+                    };
+                } else if (this.type === 'cannon') {
+                    // Crystal cannon - slow but powerful
+                    projectile = {
+                        x: this.x,
+                        y: this.y,
+                        targetX: this.target.x,
+                        targetY: this.target.y,
+                        target: this.target,
+                        damage: damage,
+                        color: this.stats.projectileColor,
+                        effect: this.stats.effect,
+                        speed: 6, // Slower projectile
+                        tower: this,
+                        size: 8 + this.level * 2 // Larger projectiles at higher levels
+                    };
+                } else {
+                    // Default projectile for archer and other towers
+                    projectile = {
+                        x: this.x,
+                        y: this.y,
+                        targetX: this.target.x,
+                        targetY: this.target.y,
+                        target: this.target,
+                        damage: damage,
+                        color: this.stats.projectileColor,
+                        effect: this.stats.effect,
+                        speed: 8,
+                        tower: this
+                    };
+                }
+
+                projectiles.push(projectile);
+            }
+
+            findChainTargets() {
+                const targets = [];
+                const maxChains = this.level + 1; // 1-4 chain targets based on level
+
+                for (let enemy of enemies) {
+                    if (enemy !== this.target) {
+                        const distance = Math.sqrt((enemy.x - this.target.x) ** 2 + (enemy.y - this.target.y) ** 2);
+                        if (distance <= 60 && targets.length < maxChains) {
+                            targets.push(enemy);
+                        }
+                    }
+                }
+
+                return targets;
+            }
+
+            draw() {
+                const size = 20 + (this.level * 3); // Grow with upgrades
+
+                // Character base (magical circle)
+                ctx.fillStyle = this.stats.color;
+                ctx.globalAlpha = 0.7;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
+                // Magical aura animation
+                const auraSize = size + Math.sin(this.animationFrame * 0.1) * 3;
+                ctx.strokeStyle = this.stats.projectileColor;
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, auraSize, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+
+                // Character symbol based on type
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = `${16 + this.level * 2}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                let symbol = '';
+                if (this.type === 'wizard') {
+                    // Show current spell for wizard
+                    const spells = this.stats.spells || ['fire'];
+                    const spellIndex = Math.floor(this.animationFrame / 60) % spells.length;
+                    const currentSpell = spells[spellIndex];
+
+                    switch (currentSpell) {
+                        case 'fire': symbol = '🔥'; break;
+                        case 'ice': symbol = '❄️'; break;
+                        case 'lightning': symbol = '⚡'; break;
+                        default: symbol = '🧙‍♂️'; break;
+                    }
+                } else {
+                    switch (this.type) {
+                        case 'archer': symbol = '🏹'; break;
+                        case 'ninja': symbol = '🥷'; break;
+                        case 'cannon': symbol = '💎'; break;
+                        default: symbol = '🏗️'; break;
+                    }
+                }
+                ctx.fillText(symbol, this.x, this.y);
+
+                // Level indicator
+                if (this.level > 0) {
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = '12px Arial';
+                    for (let i = 0; i < this.level; i++) {
+                        ctx.fillText('★', this.x - 10 + (i * 7), this.y - size - 5);
+                    }
+                }
+
+                // Range indicator (when selected)
+                if (this.isSelected) {
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.stats.range, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Upgrade indicator
+                    if (this.canUpgrade()) {
+                        ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+                        ctx.fillRect(this.x - 25, this.y + size + 5, 50, 15);
+                        ctx.fillStyle = '#000';
+                        ctx.font = '10px Arial';
+                        ctx.fillText(`↑ ${this.getUpgradeCost()}g`, this.x, this.y + size + 12);
+                    }
+                }
+            }
+        }
+
+        // Game functions
+        function selectTower(type) {
+            if (game.gold >= towerTypes[type].baseCost) {
+                game.selectedTowerType = type;
+                game.selectedTowerInstance = null;
+                deselectAllTowers();
+                updateUI();
+            }
+        }
+
+        function selectTowerInstance(tower) {
+            game.selectedTowerType = null;
+            game.selectedTowerInstance = tower;
+            deselectAllTowers();
+            tower.isSelected = true;
+            updateUI();
+        }
+
+        function deselectTower() {
+            game.selectedTowerType = null;
+            game.selectedTowerInstance = null;
+            deselectAllTowers();
+            updateUI();
+        }
+
+        function deselectAllTowers() {
+            for (let tower of towers) {
+                tower.isSelected = false;
+            }
+        }
+
+        function upgradeTower() {
+            if (game.selectedTowerInstance && game.selectedTowerInstance.upgrade()) {
+                updateUI();
+            }
+        }
+
+        function canPlaceTower(x, y) {
+            // Check if too close to path
+            for (let point of path) {
+                const distance = Math.sqrt((x - point.x) ** 2 + (y - point.y) ** 2);
+                if (distance < 40) return false;
+            }
+
+            // Check if too close to other towers
+            for (let tower of towers) {
+                const distance = Math.sqrt((x - tower.x) ** 2 + (y - tower.y) ** 2);
+                if (distance < 50) return false;
+            }
+
+            return true;
+        }
+
+        function placeTower(x, y) {
+            if (!game.selectedTowerType || !canPlaceTower(x, y)) return;
+
+            const cost = towerTypes[game.selectedTowerType].baseCost;
+            if (game.gold >= cost) {
+                towers.push(new Tower(x, y, game.selectedTowerType));
+                game.gold -= cost;
+                game.selectedTowerType = null;
+                updateUI();
+            }
+        }
+
+        function getTowerAt(x, y) {
+            for (let tower of towers) {
+                const distance = Math.sqrt((x - tower.x) ** 2 + (y - tower.y) ** 2);
+                if (distance <= 25) {
+                    return tower;
+                }
+            }
+            return null;
+        }
+
+        function startWave() {
+            if (game.waveActive) return;
+
+            game.waveActive = true;
+
+            // Generate wave composition based on wave number
+            const waveComposition = generateWaveComposition(game.wave);
+            const totalEnemies = waveComposition.length;
+
+            console.log(`Wave ${game.wave}: Spawning ${totalEnemies} enemies`, waveComposition);
+
+            // Spawn enemies with varied timing
+            for (let i = 0; i < totalEnemies; i++) {
+                setTimeout(() => {
+                    const enemyType = waveComposition[i];
+                    enemies.push(new Enemy(enemyType, game.wave));
+                }, i * (800 - Math.min(game.wave * 20, 400))); // Faster spawning in later waves
+            }
+
+            // Check for wave completion
+            setTimeout(() => {
+                const checkWaveComplete = setInterval(() => {
+                    if (enemies.length === 0) {
+                        game.wave++;
+                        game.waveActive = false;
+                        const bonus = 50 + (game.wave * 8); // Better wave completion bonus
+                        game.gold += bonus;
+                        clearInterval(checkWaveComplete);
+                        updateUI();
+                    }
+                }, 100);
+            }, totalEnemies * 800 + 3000);
+
+            updateUI();
+        }
+
+        function generateWaveComposition(wave) {
+            const composition = [];
+            const baseCount = 6 + Math.floor(wave * 1.5); // More enemies each wave
+
+            // Wave progression logic
+            if (wave <= 3) {
+                // Early waves: mostly basic enemies
+                for (let i = 0; i < baseCount; i++) {
+                    composition.push(Math.random() < 0.8 ? 'basic' : 'fast');
+                }
+            } else if (wave <= 7) {
+                // Mid-early waves: introduce variety
+                for (let i = 0; i < baseCount; i++) {
+                    const rand = Math.random();
+                    if (rand < 0.4) composition.push('basic');
+                    else if (rand < 0.7) composition.push('fast');
+                    else composition.push('heavy');
+                }
+            } else if (wave <= 12) {
+                // Mid waves: more dangerous enemies including ninjas
+                for (let i = 0; i < baseCount; i++) {
+                    const rand = Math.random();
+                    if (rand < 0.2) composition.push('basic');
+                    else if (rand < 0.35) composition.push('fast');
+                    else if (rand < 0.55) composition.push('heavy');
+                    else if (rand < 0.75) composition.push('flying');
+                    else if (rand < 0.9) composition.push('regenerating');
+                    else composition.push('ninja_enemy');
+                }
+            } else {
+                // Late waves: all enemy types with multiple bosses and ninjas
+                for (let i = 0; i < baseCount; i++) {
+                    const rand = Math.random();
+                    if (rand < 0.1) composition.push('basic');
+                    else if (rand < 0.2) composition.push('fast');
+                    else if (rand < 0.4) composition.push('heavy');
+                    else if (rand < 0.6) composition.push('flying');
+                    else if (rand < 0.8) composition.push('regenerating');
+                    else composition.push('ninja_enemy');
+                }
+
+                // Add extra bosses in very late waves
+                const bossCount = Math.floor(wave / 8);
+                for (let i = 0; i < bossCount; i++) {
+                    composition.push('boss');
+                }
+            }
+
+            // Always add a boss every 5th wave (in addition to any late-wave bosses)
+            if (wave % 5 === 0) {
+                composition.push('boss');
+            }
+
+            // Shuffle the composition for variety
+            for (let i = composition.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [composition[i], composition[j]] = [composition[j], composition[i]];
+            }
+
+            return composition;
+        }
+
+        function updateProjectiles() {
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const proj = projectiles[i];
+
+                // Move projectile
+                const dx = proj.targetX - proj.x;
+                const dy = proj.targetY - proj.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < proj.speed) {
+                    // Hit target
+                    if (proj.target && enemies.includes(proj.target)) {
+                        applyProjectileEffect(proj);
+                    }
+                    projectiles.splice(i, 1);
+                } else {
+                    proj.x += (dx / distance) * proj.speed;
+                    proj.y += (dy / distance) * proj.speed;
+                }
+            }
+        }
+
+        function applyProjectileEffect(proj) {
+            switch (proj.effect) {
+                case 'fire':
+                    // Fire damage with burn effect (magical)
+                    const destroyed = proj.target.takeDamage(proj.damage, 'burn', true);
+                    if (destroyed) {
+                        enemies.splice(enemies.indexOf(proj.target), 1);
+                    }
+                    break;
+
+                case 'freeze':
+                    // Ice damage with slow effect (magical)
+                    const frozenDestroyed = proj.target.takeDamage(proj.damage, 'freeze', true);
+                    if (frozenDestroyed) {
+                        enemies.splice(enemies.indexOf(proj.target), 1);
+                    }
+                    break;
+
+                case 'pierce':
+                    // Piercing damage (physical, ignores armor)
+                    const piercedDestroyed = proj.target.takeDamage(proj.damage, null, false);
+                    if (piercedDestroyed) {
+                        enemies.splice(enemies.indexOf(proj.target), 1);
+                    }
+                    break;
+
+                case 'critical':
+                    // Ninja critical strike (physical damage, can backstab)
+                    let criticalDamage = proj.damage;
+
+                    // Backstab bonus if target is moving away (simple check)
+                    if (proj.target.abilities && proj.target.abilities.includes('backstab')) {
+                        criticalDamage *= 0.8; // Reduced damage vs other ninjas
+                    }
+
+                    const critDestroyed = proj.target.takeDamage(criticalDamage, null, false);
+                    if (critDestroyed) {
+                        enemies.splice(enemies.indexOf(proj.target), 1);
+                    }
+                    break;
+
+                case 'critical':
+                    // Ninja critical strike (physical damage)
+                    const critDestroyed = proj.target.takeDamage(proj.damage, null, false);
+                    if (critDestroyed) {
+                        enemies.splice(enemies.indexOf(proj.target), 1);
+                    }
+                    break;
+
+                case 'crystal':
+                    // Crystal cannon - massive damage, ignores armor and magic resist
+                    const crystalDestroyed = proj.target.takeDamage(proj.damage, null, false, true); // true = ignore defenses
+                    if (crystalDestroyed) {
+                        enemies.splice(enemies.indexOf(proj.target), 1);
+                    }
+
+                    // Crystal explosion - damage nearby enemies
+                    const explosionRadius = 40 + (proj.tower ? proj.tower.level * 10 : 0);
+                    for (let enemy of enemies) {
+                        if (enemy !== proj.target) {
+                            const distance = Math.sqrt((enemy.x - proj.target.x) ** 2 + (enemy.y - proj.target.y) ** 2);
+                            if (distance <= explosionRadius) {
+                                const splashDamage = proj.damage * 0.4; // 40% splash damage
+                                const splashDestroyed = enemy.takeDamage(splashDamage, null, false, true);
+                                if (splashDestroyed) {
+                                    enemies.splice(enemies.indexOf(enemy), 1);
+                                }
+                            }
+                        }
+                    }
+                    break;
+
+                case 'chain':
+                    // Chain lightning (magical with stun chance)
+                    let chainDamage = proj.damage;
+                    const chainTargets = [proj.target, ...(proj.chainTargets || [])];
+
+                    for (let i = 0; i < chainTargets.length; i++) {
+                        const target = chainTargets[i];
+                        if (enemies.includes(target)) {
+                            const effect = i === 0 ? 'stun' : null; // Only first target gets stunned
+                            const chainDestroyed = target.takeDamage(chainDamage, effect, true);
+                            if (chainDestroyed) {
+                                enemies.splice(enemies.indexOf(target), 1);
+                            }
+                            chainDamage *= 0.6; // Reduce damage for each chain
+                        }
+                    }
+                    break;
+
+                default:
+                    // Default physical damage
+                    const defaultDestroyed = proj.target.takeDamage(proj.damage, null, false);
+                    if (defaultDestroyed) {
+                        enemies.splice(enemies.indexOf(proj.target), 1);
+                    }
+            }
+        }
+
+        function drawPath() {
+            // Draw path background (darker, wider)
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 40;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+
+            // Draw path center (lighter, narrower)
+            ctx.strokeStyle = '#D2691E';
+            ctx.lineWidth = 30;
+
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+
+            // Draw waypoints for visibility
+            ctx.fillStyle = '#FF6B35';
+            for (let point of path) {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawProjectiles() {
+            for (let proj of projectiles) {
+                ctx.fillStyle = proj.color;
+
+                // Crystal projectiles are larger and have special effects
+                if (proj.effect === 'crystal') {
+                    const size = proj.size || 8;
+
+                    // Crystal glow effect
+                    ctx.shadowColor = proj.color;
+                    ctx.shadowBlur = 10;
+
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, size, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Reset shadow
+                    ctx.shadowBlur = 0;
+
+                    // Crystal sparkle
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.beginPath();
+                    ctx.arc(proj.x - 2, proj.y - 2, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // Regular projectiles
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('goldDisplay').textContent = game.gold;
+            document.getElementById('livesDisplay').textContent = game.lives;
+            document.getElementById('waveDisplay').textContent = game.wave;
+            document.getElementById('enemiesDisplay').textContent = enemies.length;
+
+            // Update difficulty display
+            let difficulty = 'Easy';
+            if (game.wave >= 15) difficulty = 'Nightmare';
+            else if (game.wave >= 10) difficulty = 'Hard';
+            else if (game.wave >= 5) difficulty = 'Medium';
+            document.getElementById('difficultyDisplay').textContent = difficulty;
+
+            // Update tower buttons
+            for (let type in towerTypes) {
+                const button = document.getElementById(type + 'Tower');
+                if (button) {
+                    const cost = towerTypes[type].baseCost;
+                    button.disabled = game.gold < cost;
+                    if (game.selectedTowerType === type) {
+                        button.style.background = 'linear-gradient(45deg, #FFD700, #FFA500)';
+                    } else {
+                        button.style.background = game.gold >= cost ?
+                            'linear-gradient(45deg, #4CAF50, #45a049)' : '#666';
+                    }
+                }
+            }
+
+            // Update upgrade section
+            const upgradeSection = document.getElementById('upgradeSection');
+            const upgradeButton = document.getElementById('upgradeButton');
+            const selectedInfo = document.getElementById('selectedTowerInfo');
+
+            if (game.selectedTowerInstance) {
+                upgradeSection.style.display = 'block';
+                const tower = game.selectedTowerInstance;
+                const towerData = towerTypes[tower.type];
+
+                selectedInfo.innerHTML = `
+                    <strong>${towerData.name}</strong><br>
+                    Level: ${tower.level + 1}/4<br>
+                    Damage: ${tower.stats.damage}<br>
+                    Range: ${tower.stats.range}<br>
+                    Fire Rate: ${(1000 / tower.stats.fireRate).toFixed(1)}/sec
+                `;
+
+                if (tower.canUpgrade()) {
+                    upgradeButton.disabled = false;
+                    upgradeButton.textContent = `Upgrade (${tower.getUpgradeCost()}g)`;
+                    upgradeButton.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+                } else {
+                    upgradeButton.disabled = true;
+                    upgradeButton.textContent = tower.level >= 3 ? 'Max Level' : 'Not Enough Gold';
+                    upgradeButton.style.background = '#666';
+                }
+            } else {
+                upgradeSection.style.display = 'none';
+            }
+
+            document.getElementById('waveButton').disabled = game.waveActive;
+        }
+
+        function gameLoop() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw game elements
+            drawPath();
+
+            // Update and draw towers
+            for (let tower of towers) {
+                tower.update();
+                tower.draw();
+            }
+
+            // Update and draw enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                if (!enemies[i].update()) {
+                    enemies.splice(i, 1);
+                } else {
+                    enemies[i].draw();
+                }
+            }
+
+            // Update and draw projectiles
+            updateProjectiles();
+            drawProjectiles();
+
+            // Update UI
+            updateUI();
+
+            // Check game over
+            if (game.lives <= 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#FF0000';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = '24px Arial';
+                ctx.fillText(`Wave Reached: ${game.wave}`, canvas.width / 2, canvas.height / 2 + 50);
+                return;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Event listeners
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Check if clicking on existing tower
+            const clickedTower = getTowerAt(x, y);
+            if (clickedTower) {
+                selectTowerInstance(clickedTower);
+                return;
+            }
+
+            // Place new tower
+            if (game.selectedTowerType) {
+                placeTower(x, y);
+            } else {
+                deselectTower();
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (game.selectedTowerType) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                canvas.style.cursor = canPlaceTower(x, y) ? 'crosshair' : 'not-allowed';
+            } else {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const tower = getTowerAt(x, y);
+
+                canvas.style.cursor = tower ? 'pointer' : 'default';
+            }
+        });
+
+        // Start game
+        console.log('Starting game...', { canvas: canvas, ctx: ctx, path: path });
+
+        // Test canvas by drawing a simple rectangle
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+
+</html>
