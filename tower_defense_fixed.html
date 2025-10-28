@@ -453,22 +453,22 @@
                 name: "👹 Demon Lord", baseHealth: 300, baseSpeed: 0.5, color: '#8B0000', size: 20,
                 abilities: ['boss_aura'], immunities: [], liveDamage: 10 // No immunities - all towers work
             },
-            // LEVEL BOSSES
+            // LEVEL BOSSES - Each boss deals 999 damage (instant game over if they reach the end!)
             robot: {
                 name: "🤖 Giant Robot", baseHealth: 2000, baseSpeed: 0.3, color: '#708090', size: 32,
-                abilities: ['boss_aura', 'armor'], immunities: [], liveDamage: 15, isBoss: true
+                abilities: ['boss_aura', 'armor'], immunities: [], liveDamage: 999, isBoss: true
             },
             dragon: {
                 name: "🐉 Mountain Dragon", baseHealth: 2500, baseSpeed: 0.4, color: '#DC143C', size: 34,
-                abilities: ['boss_aura', 'flying'], immunities: [], liveDamage: 20, isBoss: true
+                abilities: ['boss_aura', 'flying'], immunities: [], liveDamage: 999, isBoss: true
             },
             lich: {
                 name: "👻 Dungeon Lich", baseHealth: 2200, baseSpeed: 0.35, color: '#8A2BE2', size: 33,
-                abilities: ['boss_aura', 'teleport'], immunities: [], liveDamage: 18, isBoss: true
+                abilities: ['boss_aura', 'teleport'], immunities: [], liveDamage: 999, isBoss: true
             },
             spiderQueen: {
                 name: "🕷️ Spider Queen", baseHealth: 3000, baseSpeed: 0.45, color: '#2F4F4F', size: 36,
-                abilities: ['boss_aura', 'spawn_on_death'], immunities: [], liveDamage: 25, isBoss: true
+                abilities: ['boss_aura', 'spawn_on_death'], immunities: [], liveDamage: 999, isBoss: true
             },
             babySpider: {
                 name: "🕸️ Baby Spider", baseHealth: 15, baseSpeed: 1.2, color: '#696969', size: 8,
@@ -1403,7 +1403,7 @@
                     emoji: '🤖',
                     color1: '#FF0000',
                     color2: '#708090',
-                    effect: 'HEAVY ARMOR DETECTED'
+                    effect: 'HEAVY ARMOR - INSTANT DEATH IF IT REACHES THE END!'
                 },
                 {
                     // Level 2: Mountain Dragon
@@ -1414,7 +1414,7 @@
                     emoji: '🐉',
                     color1: '#DC143C',
                     color2: '#FF6347',
-                    effect: 'AIRBORNE THREAT'
+                    effect: 'AIRBORNE THREAT - INSTANT DEATH IF IT REACHES THE END!'
                 },
                 {
                     // Level 3: Dungeon Lich
@@ -1425,7 +1425,7 @@
                     emoji: '👻',
                     color1: '#8A2BE2',
                     color2: '#9370DB',
-                    effect: 'TELEPORTATION MAGIC'
+                    effect: 'TELEPORTATION - INSTANT DEATH IF IT REACHES THE END!'
                 },
                 {
                     // Level 4: Spider Queen (FINAL BOSS)
@@ -1436,7 +1436,7 @@
                     emoji: '🕷️',
                     color1: '#2F4F4F',
                     color2: '#FF0000',
-                    effect: 'SPAWN ON DEATH - DEFEAT ALL BABIES!'
+                    effect: 'SPAWNS BABIES ON DEATH - GAME OVER IF SHE REACHES THE END!'
                 }
             ];
 
@@ -1521,11 +1521,13 @@
             const waveInMap = ((wave - 1) % currentMapData.waves) + 1;
             const isLevelBossWave = waveInMap === 25;
 
+            console.log(`Wave ${wave}: Map ${game.currentMap + 1}, WaveInMap: ${waveInMap}, BossWave: ${isLevelBossWave}`);
+
             if (isLevelBossWave) {
                 // Level boss wave! Spawn appropriate boss for current map
                 const levelBosses = ['robot', 'dragon', 'lich', 'spiderQueen'];
                 const boss = levelBosses[game.currentMap];
-                console.log(`🎯 LEVEL BOSS WAVE! Spawning ${enemyTypes[boss].name}`);
+                console.log(`🎯 LEVEL BOSS WAVE! Spawning ${enemyTypes[boss].name} for Map ${game.currentMap + 1}`);
                 // Just the boss, make it epic!
                 composition.push(boss);
                 return composition;
