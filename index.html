@@ -232,6 +232,7 @@
                 catapult: 0,
                 hero: 0
             },
+            savedTowers: [], // Stores tower objects with their levels for repositioning
             placementMode: false,
             levelTransition: false
         };
@@ -890,9 +891,10 @@
                 return; // Can't select hero if already placed
             }
 
-            // In placement mode, check inventory
+            // In placement mode, check saved towers
             if (game.placementMode) {
-                if (game.towerInventory[type] > 0) {
+                const hasTowerOfType = game.savedTowers.some(t => t.type === type);
+                if (hasTowerOfType) {
                     game.selectedTowerType = type;
                     game.selectedTowerInstance = null;
                     deselectAllTowers();
@@ -1076,14 +1078,27 @@
         function placeTower(x, y) {
             if (!game.selectedTowerType || !canPlaceTower(x, y)) return;
 
-            // Placement mode: use inventory
+            // Placement mode: use saved towers (with their levels)
             if (game.placementMode) {
-                if (game.towerInventory[game.selectedTowerType] > 0) {
-                    towers.push(new Tower(x, y, game.selectedTowerType));
-                    game.towerInventory[game.selectedTowerType]--;
+                // Find a saved tower of this type
+                const savedIndex = game.savedTowers.findIndex(t => t.type === game.selectedTowerType);
+                if (savedIndex >= 0) {
+                    const savedTower = game.savedTowers[savedIndex];
+
+                    // Create new tower at this position
+                    const newTower = new Tower(x, y, savedTower.type);
+
+                    // Restore the tower's upgrade level
+                    newTower.level = savedTower.level;
+                    newTower.stats = towerTypes[savedTower.type].upgrades[savedTower.level];
+
+                    towers.push(newTower);
+
+                    // Remove from saved towers
+                    game.savedTowers.splice(savedIndex, 1);
 
                     // Mark hero as placed if it's a hero
-                    if (game.selectedTowerType === 'hero') {
+                    if (savedTower.type === 'hero') {
                         game.heroPlaced = true;
                     }
 
@@ -1177,7 +1192,12 @@
         }
 
         function startLevelTransition() {
-            // Save tower positions are already tracked in inventory
+            // Save all towers with their upgrade levels
+            game.savedTowers = towers.map(tower => ({
+                type: tower.type,
+                level: tower.level
+            }));
+
             // Clear all towers from board
             towers = [];
             game.heroPlaced = false;
@@ -1194,6 +1214,8 @@
         function finishPlacement() {
             game.placementMode = false;
             game.levelTransition = false;
+            // Any unplaced towers are lost (player chose not to place them)
+            game.savedTowers = [];
             updateUI();
         }
         
@@ -1741,16 +1763,25 @@
                 const button = document.getElementById(type + 'Tower');
                 if (button) {
                     const cost = towerTypes[type].baseCost;
-                    const inventory = game.towerInventory[type];
 
-                    // In placement mode, show inventory
+                    // In placement mode, show saved towers with levels
                     if (game.placementMode) {
-                        // Update button text to show inventory
-                        const towerName = towerTypes[type].name.split(' ')[0]; // Get emoji
-                        button.innerHTML = `${towerName} x${inventory}`;
+                        // Count saved towers of this type
+                        const savedOfType = game.savedTowers.filter(t => t.type === type);
+                        const count = savedOfType.length;
 
-                        // Disable if no inventory or hero already placed
-                        if (inventory === 0 || (type === 'hero' && game.heroPlaced)) {
+                        // Update button text to show count and levels
+                        const towerName = towerTypes[type].name.split(' ')[0]; // Get emoji
+                        if (count > 0) {
+                            // Show level stars for each tower
+                            const levels = savedOfType.map(t => '★'.repeat(t.level + 1)).join(' ');
+                            button.innerHTML = `${towerName} x${count}<br><small style="font-size: 10px;">${levels}</small>`;
+                        } else {
+                            button.innerHTML = `${towerName} x0`;
+                        }
+
+                        // Disable if no saved towers or hero already placed
+                        if (count === 0 || (type === 'hero' && game.heroPlaced)) {
                             button.disabled = true;
                             button.style.background = '#666';
                         } else {
@@ -1873,16 +1904,17 @@
             // Show placement mode message
             if (game.placementMode) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(200, 50, 400, 100);
+                ctx.fillRect(180, 50, 440, 120);
 
                 ctx.fillStyle = '#FFD700';
-                ctx.font = 'bold 28px Arial';
+                ctx.font = 'bold 26px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('📍 TOWER PLACEMENT MODE', canvas.width/2, 90);
+                ctx.fillText('📍 TOWER PLACEMENT & UPGRADE', canvas.width/2, 85);
 
                 ctx.fillStyle = '#FFFFFF';
-                ctx.font = '16px Arial';
-                ctx.fillText('Place your towers, then click Ready', canvas.width/2, 120);
+                ctx.font = '15px Arial';
+                ctx.fillText('Your towers keep their upgrade levels!', canvas.width/2, 115);
+                ctx.fillText('Place them and click Ready to continue', canvas.width/2, 145);
             }
             
             // Update and draw towers
