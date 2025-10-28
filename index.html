@@ -145,7 +145,11 @@
             <button id="waveButton" class="tower-button" onclick="startWave()">
                 🚀 Start Wave
             </button>
-            
+
+            <button id="readyButton" class="tower-button" onclick="finishPlacement()" style="display: none; background: linear-gradient(45deg, #4CAF50, #45a049); font-weight: bold;">
+                ✅ Ready - Start Waves
+            </button>
+
             <div id="autoWaveContainer" style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; border: 2px solid transparent; transition: all 0.3s;">
                 <label style="display: flex; align-items: center; cursor: pointer; font-weight: bold;">
                     <input type="checkbox" id="autoWaveToggle" onchange="toggleAutoWave()" style="margin-right: 10px; transform: scale(1.3);">
@@ -219,7 +223,17 @@
             autoWaveCountdown: 0,
             currentMap: 0,
             victory: false,
-            heroPlaced: false
+            heroPlaced: false,
+            towerInventory: {
+                wizard: 0,
+                archer: 0,
+                ninja: 0,
+                cannon: 0,
+                catapult: 0,
+                hero: 0
+            },
+            placementMode: false,
+            levelTransition: false
         };
         
         // Map definitions with different themes and objectives
@@ -876,11 +890,23 @@
                 return; // Can't select hero if already placed
             }
 
-            if (game.gold >= towerTypes[type].baseCost) {
-                game.selectedTowerType = type;
-                game.selectedTowerInstance = null;
-                deselectAllTowers();
-                updateUI();
+            // In placement mode, check inventory
+            if (game.placementMode) {
+                if (game.towerInventory[type] > 0) {
+                    game.selectedTowerType = type;
+                    game.selectedTowerInstance = null;
+                    deselectAllTowers();
+                    updateUI();
+                }
+            }
+            // Normal mode, check gold
+            else {
+                if (game.gold >= towerTypes[type].baseCost) {
+                    game.selectedTowerType = type;
+                    game.selectedTowerInstance = null;
+                    deselectAllTowers();
+                    updateUI();
+                }
             }
         }
         
@@ -936,6 +962,7 @@
 
                     towers.splice(towerIndex, 1);
                     game.gold += sellValue;
+                    game.towerInventory[tower.type]--;
                     game.selectedTowerInstance = null;
                     updateUI();
                 }
@@ -978,15 +1005,18 @@
         }
         
         function updateAutoWave() {
+            // Don't auto-wave during placement mode
+            if (game.placementMode) return;
+
             if (game.autoWave && !game.waveActive && enemies.length === 0) {
                 if (game.autoWaveCountdown > 0) {
                     game.autoWaveCountdown--;
-                    
+
                     // Update countdown display
                     const seconds = Math.ceil(game.autoWaveCountdown / 60);
-                    document.getElementById('autoWaveStatus').textContent = 
+                    document.getElementById('autoWaveStatus').textContent =
                         `Auto-starting wave ${game.wave} in ${seconds} seconds...`;
-                    
+
                     if (game.autoWaveCountdown === 0) {
                         startWave();
                     }
@@ -1046,23 +1076,42 @@
         function placeTower(x, y) {
             if (!game.selectedTowerType || !canPlaceTower(x, y)) return;
 
-            const cost = towerTypes[game.selectedTowerType].baseCost;
-            if (game.gold >= cost) {
-                towers.push(new Tower(x, y, game.selectedTowerType));
-                game.gold -= cost;
+            // Placement mode: use inventory
+            if (game.placementMode) {
+                if (game.towerInventory[game.selectedTowerType] > 0) {
+                    towers.push(new Tower(x, y, game.selectedTowerType));
+                    game.towerInventory[game.selectedTowerType]--;
 
-                // Mark hero as placed if it's a hero
-                if (game.selectedTowerType === 'hero') {
-                    game.heroPlaced = true;
+                    // Mark hero as placed if it's a hero
+                    if (game.selectedTowerType === 'hero') {
+                        game.heroPlaced = true;
+                    }
+
+                    game.selectedTowerType = null;
+                    updateUI();
                 }
+            }
+            // Normal mode: purchase with gold
+            else {
+                const cost = towerTypes[game.selectedTowerType].baseCost;
+                if (game.gold >= cost) {
+                    towers.push(new Tower(x, y, game.selectedTowerType));
+                    game.gold -= cost;
+                    game.towerInventory[game.selectedTowerType]++;
 
-                game.selectedTowerType = null;
-                updateUI();
+                    // Mark hero as placed if it's a hero
+                    if (game.selectedTowerType === 'hero') {
+                        game.heroPlaced = true;
+                    }
+
+                    game.selectedTowerType = null;
+                    updateUI();
+                }
             }
         }
         
         function startWave() {
-            if (game.waveActive) return;
+            if (game.waveActive || game.placementMode) return;
             
             game.waveActive = true;
             
@@ -1121,10 +1170,31 @@
             // Check if we completed a map (except the final castle map)
             if (waveInMap === currentMapData.waves && game.currentMap < mapData.length - 1) {
                 game.currentMap++;
-                showMapTransition();
+                startLevelTransition();
                 return true;
             }
             return false;
+        }
+
+        function startLevelTransition() {
+            // Save tower positions are already tracked in inventory
+            // Clear all towers from board
+            towers = [];
+            game.heroPlaced = false;
+            game.selectedTowerInstance = null;
+            game.selectedTowerType = null;
+
+            // Enter placement mode
+            game.placementMode = true;
+            game.levelTransition = true;
+
+            updateUI();
+        }
+
+        function finishPlacement() {
+            game.placementMode = false;
+            game.levelTransition = false;
+            updateUI();
         }
         
         function showMapTransition() {
@@ -1671,33 +1741,61 @@
                 const button = document.getElementById(type + 'Tower');
                 if (button) {
                     const cost = towerTypes[type].baseCost;
+                    const inventory = game.towerInventory[type];
 
-                    // Disable hero button if already placed
-                    if (type === 'hero' && game.heroPlaced) {
-                        button.disabled = true;
-                        button.style.background = '#666';
-                    } else {
-                        button.disabled = game.gold < cost;
-                        if (game.selectedTowerType === type) {
-                            button.style.background = 'linear-gradient(45deg, #FFD700, #FFA500)';
+                    // In placement mode, show inventory
+                    if (game.placementMode) {
+                        // Update button text to show inventory
+                        const towerName = towerTypes[type].name.split(' ')[0]; // Get emoji
+                        button.innerHTML = `${towerName} x${inventory}`;
+
+                        // Disable if no inventory or hero already placed
+                        if (inventory === 0 || (type === 'hero' && game.heroPlaced)) {
+                            button.disabled = true;
+                            button.style.background = '#666';
                         } else {
-                            button.style.background = game.gold >= cost ?
-                                'linear-gradient(45deg, #4CAF50, #45a049)' : '#666';
+                            button.disabled = false;
+                            if (game.selectedTowerType === type) {
+                                button.style.background = 'linear-gradient(45deg, #FFD700, #FFA500)';
+                            } else {
+                                button.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+                            }
+                        }
+                    }
+                    // Normal mode, show cost
+                    else {
+                        // Reset button text to show cost
+                        const baseName = towerTypes[type].name;
+                        const costText = type === 'hero' ? ' - UNIQUE' : '';
+                        button.innerHTML = `${baseName} (${cost}g)${costText}`;
+
+                        // Disable hero button if already placed
+                        if (type === 'hero' && game.heroPlaced) {
+                            button.disabled = true;
+                            button.style.background = '#666';
+                        } else {
+                            button.disabled = game.gold < cost;
+                            if (game.selectedTowerType === type) {
+                                button.style.background = 'linear-gradient(45deg, #FFD700, #FFA500)';
+                            } else {
+                                button.style.background = game.gold >= cost ?
+                                    'linear-gradient(45deg, #4CAF50, #45a049)' : '#666';
+                            }
                         }
                     }
                 }
             }
             
-            // Update upgrade section
+            // Update upgrade section (hide during placement mode)
             const upgradeSection = document.getElementById('upgradeSection');
             const upgradeButton = document.getElementById('upgradeButton');
             const selectedInfo = document.getElementById('selectedTowerInfo');
-            
-            if (game.selectedTowerInstance) {
+
+            if (game.selectedTowerInstance && !game.placementMode) {
                 upgradeSection.style.display = 'block';
                 const tower = game.selectedTowerInstance;
                 const towerData = towerTypes[tower.type];
-                
+
                 // Calculate sell value for display
                 const baseCost = towerTypes[tower.type].baseCost;
                 let totalInvestment = baseCost;
@@ -1705,7 +1803,7 @@
                     totalInvestment += Math.floor(baseCost * (1.5 ** (i + 1)));
                 }
                 const sellValue = Math.floor(totalInvestment * 0.5);
-                
+
                 selectedInfo.innerHTML = `
                     <strong>${towerData.name}</strong><br>
                     Level: ${tower.level + 1}/4<br>
@@ -1714,7 +1812,7 @@
                     Fire Rate: ${(1000/tower.stats.fireRate).toFixed(1)}/sec<br>
                     <span style="color: #FFD700;">Sell Value: ${sellValue}g</span>
                 `;
-                
+
                 if (tower.canUpgrade()) {
                     upgradeButton.disabled = false;
                     upgradeButton.textContent = `Upgrade (${tower.getUpgradeCost()}g)`;
@@ -1727,8 +1825,19 @@
             } else {
                 upgradeSection.style.display = 'none';
             }
-            
-            document.getElementById('waveButton').disabled = game.waveActive;
+
+            // Show/hide wave and ready buttons based on placement mode
+            const waveButton = document.getElementById('waveButton');
+            const readyButton = document.getElementById('readyButton');
+
+            if (game.placementMode) {
+                waveButton.style.display = 'none';
+                readyButton.style.display = 'block';
+            } else {
+                waveButton.style.display = 'block';
+                readyButton.style.display = 'none';
+                waveButton.disabled = game.waveActive;
+            }
             
             // Update auto-wave status
             const autoWaveStatus = document.getElementById('autoWaveStatus');
@@ -1751,15 +1860,30 @@
         function gameLoop() {
             // Clear canvas with map-specific background
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
             const currentMapData = getCurrentMap();
             ctx.fillStyle = currentMapData.backgroundColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+
             // Draw game elements
             drawDecorations(); // Draw scenery first (background)
             drawPath();
             drawObjective(); // Draw the thing we're protecting
+
+            // Show placement mode message
+            if (game.placementMode) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(200, 50, 400, 100);
+
+                ctx.fillStyle = '#FFD700';
+                ctx.font = 'bold 28px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('📍 TOWER PLACEMENT MODE', canvas.width/2, 90);
+
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = '16px Arial';
+                ctx.fillText('Place your towers, then click Ready', canvas.width/2, 120);
+            }
             
             // Update and draw towers
             for (let tower of towers) {
