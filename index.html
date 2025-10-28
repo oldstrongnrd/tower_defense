@@ -135,6 +135,12 @@
             <button class="tower-button" id="cannonTower" onclick="selectTower('cannon')">
                 💎 Crystal Cannon (120g)
             </button>
+            <button class="tower-button" id="catapultTower" onclick="selectTower('catapult')">
+                🪨 Catapult (110g)
+            </button>
+            <button class="tower-button" id="heroTower" onclick="selectTower('hero')">
+                ⚔️ Hero (200g) - UNIQUE
+            </button>
             
             <button id="waveButton" class="tower-button" onclick="startWave()">
                 🚀 Start Wave
@@ -169,24 +175,30 @@
                 <p>• Click tower type, then click to place</p>
                 <p>• Click towers to upgrade (4 levels max)</p>
                 <p>• Defend against enemy waves!</p>
-                
+
                 <p><strong>🏹 Enemy Types & Immunities:</strong></p>
                 <p>👾 Goblin - Magic resistant, immune to 🧙‍♂️ wizard</p>
                 <p>🏃 Scout - Too fast, immune to 🥷 ninja</p>
                 <p>🛡️ Armored Orc - Heavy armor, immune to 🏹 archer</p>
                 <p>🦅 Wyvern - Too agile, immune to 💎 cannon</p>
                 <p>👹 Demon Lord - Boss, no immunities (10 lives!)</p>
-                
+
                 <p><strong>💰 Tower Management:</strong></p>
                 <p>• Click towers to upgrade or sell</p>
                 <p>• Sell value = 50% of total investment</p>
                 <p>• 🛡️ icon shows immunity in effect</p>
-                
+                <p>• ↑ icon shows hero buff is active</p>
+
+                <p><strong>🗼 Special Towers:</strong></p>
+                <p>🪨 Catapult - Heavy damage, gains fire DoT</p>
+                <p>⚔️ Hero - UNIQUE! Buffs nearby towers</p>
+
                 <p><strong>⚔️ Strategy Guide:</strong></p>
                 <p>🧙‍♂️ vs Scouts, Orcs, Wyverns, Boss</p>
                 <p>🏹 vs Goblins, Scouts, Wyverns, Boss</p>
                 <p>🥷 vs Goblins, Orcs, Wyverns, Boss</p>
                 <p>💎 vs Goblins, Scouts, Orcs, Boss</p>
+                <p>🪨 vs All (fire damage at lvl 2+)</p>
             </div>
         </div>
     </div>
@@ -205,7 +217,9 @@
             waveActive: false,
             autoWave: false,
             autoWaveCountdown: 0,
-            currentMap: 0
+            currentMap: 0,
+            victory: false,
+            heroPlaced: false
         };
         
         // Map definitions with different themes and objectives
@@ -294,6 +308,27 @@
                     { damage: 200, range: 110, fireRate: 2100, color: '#DA70D6', effect: 'crystal' },
                     { damage: 320, range: 120, fireRate: 1900, color: '#FF69B4', effect: 'crystal' }
                 ]
+            },
+            catapult: {
+                name: "🪨 Catapult",
+                baseCost: 110,
+                upgrades: [
+                    { damage: 90, range: 130, fireRate: 2800, color: '#8B4513', effect: 'splash', fireDamage: 0 },
+                    { damage: 140, range: 140, fireRate: 2600, color: '#A0522D', effect: 'splash', fireDamage: 20 },
+                    { damage: 210, range: 150, fireRate: 2400, color: '#CD853F', effect: 'splash', fireDamage: 35 },
+                    { damage: 330, range: 160, fireRate: 2200, color: '#D2691E', effect: 'splash', fireDamage: 55 }
+                ]
+            },
+            hero: {
+                name: "⚔️ Hero",
+                baseCost: 200,
+                unique: true,
+                upgrades: [
+                    { damage: 50, range: 100, fireRate: 1200, color: '#FFD700', effect: 'hero', buffRange: 120, buffDamage: 0.15, buffFireRate: 0.10 },
+                    { damage: 80, range: 110, fireRate: 1100, color: '#FFA500', effect: 'hero', buffRange: 140, buffDamage: 0.25, buffFireRate: 0.15 },
+                    { damage: 120, range: 120, fireRate: 1000, color: '#FF8C00', effect: 'hero', buffRange: 160, buffDamage: 0.35, buffFireRate: 0.20 },
+                    { damage: 180, range: 130, fireRate: 900, color: '#FF4500', effect: 'hero', buffRange: 180, buffDamage: 0.50, buffFireRate: 0.25 }
+                ]
             }
         };
 
@@ -360,48 +395,84 @@
             
             update() {
                 this.animationFrame++;
-                
+
+                // Calculate buffs from nearby heroes
+                this.heroBuff = this.getHeroBuffs();
+
                 // Find closest enemy in range (excluding immune enemies)
                 this.target = null;
                 let closestDistance = this.stats.range;
-                
+
                 for (let enemy of enemies) {
                     // Skip enemies that are immune to this tower type
                     if (enemy.immunities && enemy.immunities.includes(this.type)) {
                         continue;
                     }
-                    
+
                     const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
                     if (distance <= closestDistance) {
                         this.target = enemy;
                         closestDistance = distance;
                     }
                 }
-                
+
+                // Calculate effective fire rate with hero buff
+                const effectiveFireRate = this.heroBuff ?
+                    this.stats.fireRate * (1 - this.heroBuff.fireRate) :
+                    this.stats.fireRate;
+
                 // Fire at target
-                if (this.target && Date.now() - this.lastFire > this.stats.fireRate) {
+                if (this.target && Date.now() - this.lastFire > effectiveFireRate) {
                     this.fire();
                     this.lastFire = Date.now();
                 }
             }
+
+            getHeroBuffs() {
+                // Find nearby hero and get its buffs
+                for (let tower of towers) {
+                    if (tower.type === 'hero' && tower !== this) {
+                        const distance = Math.sqrt((this.x - tower.x) ** 2 + (this.y - tower.y) ** 2);
+                        if (distance <= tower.stats.buffRange) {
+                            return {
+                                damage: tower.stats.buffDamage,
+                                fireRate: tower.stats.buffFireRate
+                            };
+                        }
+                    }
+                }
+                return null;
+            }
             
             fire() {
                 if (!this.target) return;
-                
+
+                // Calculate effective damage with hero buff
+                const effectiveDamage = this.heroBuff ?
+                    Math.floor(this.stats.damage * (1 + this.heroBuff.damage)) :
+                    this.stats.damage;
+
                 // Determine spell type for wizard
                 let spellType = 'normal';
                 if (this.type === 'wizard' && this.stats.spells) {
                     const spells = this.stats.spells;
                     spellType = spells[Math.floor(Math.random() * spells.length)];
                 }
-                
+
+                // Catapult fire damage
+                let fireDamage = 0;
+                if (this.type === 'catapult' && this.stats.fireDamage) {
+                    fireDamage = this.stats.fireDamage;
+                }
+
                 projectiles.push({
                     x: this.x,
                     y: this.y,
                     targetX: this.target.x,
                     targetY: this.target.y,
                     target: this.target,
-                    damage: this.stats.damage,
+                    damage: effectiveDamage,
+                    fireDamage: fireDamage,
                     speed: 8,
                     spellType: spellType,
                     towerType: this.type
@@ -429,7 +500,7 @@
                     const spells = this.stats.spells || ['fire'];
                     const spellIndex = Math.floor(this.animationFrame / 60) % spells.length;
                     const currentSpell = spells[spellIndex];
-                    
+
                     switch(currentSpell) {
                         case 'fire': symbol = '🔥'; break;
                         case 'ice': symbol = '❄️'; break;
@@ -442,9 +513,29 @@
                         case 'archer': symbol = '🏹'; break;
                         case 'ninja': symbol = '🥷'; break;
                         case 'cannon': symbol = '💎'; break;
+                        case 'catapult': symbol = '🪨'; break;
+                        case 'hero': symbol = '⚔️'; break;
                     }
                 }
                 ctx.fillText(symbol, this.x, this.y);
+
+                // Show hero buff range
+                if (this.type === 'hero') {
+                    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.stats.buffRange, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // Show buff indicator if tower is buffed by hero
+                if (this.heroBuff && this.type !== 'hero') {
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = '12px Arial';
+                    ctx.fillText('↑', this.x + size + 5, this.y - size - 5);
+                }
                 
                 // Level stars
                 if (this.level > 0) {
@@ -507,12 +598,26 @@
                 
                 // Animation
                 this.animationFrame = 0;
+
+                // Fire damage over time
+                this.burning = false;
+                this.burnDamage = 0;
+                this.burnDuration = 0;
             }
             
             update() {
                 if (this.pathIndex >= path.length - 1) return false;
-                
+
                 this.animationFrame++;
+
+                // Apply burning damage over time
+                if (this.burning && this.burnDuration > 0) {
+                    this.health -= this.burnDamage / 60; // Damage per frame (60 fps)
+                    this.burnDuration--;
+                    if (this.burnDuration <= 0) {
+                        this.burning = false;
+                    }
+                }
                 
                 // Speed boost ability (for scouts)
                 let currentSpeed = this.speed;
@@ -624,6 +729,13 @@
                 if (this.abilities.includes('speed_boost') && this.speedBoostTimer >= 180 && this.speedBoostTimer < 240) {
                     ctx.fillText('💨', this.x - size - 8, this.y - 15);
                 }
+
+                // Burning indicator
+                if (this.burning) {
+                    ctx.fillStyle = '#FF4500';
+                    ctx.font = '14px Arial';
+                    ctx.fillText('🔥', this.x + size + 5, this.y - 10);
+                }
                 
                 // Immunity indicators (show shield when being targeted by immune tower)
                 for (let tower of towers) {
@@ -675,6 +787,11 @@
         
         // Game functions
         function selectTower(type) {
+            // Check if trying to select hero when already placed
+            if (type === 'hero' && game.heroPlaced) {
+                return; // Can't select hero if already placed
+            }
+
             if (game.gold >= towerTypes[type].baseCost) {
                 game.selectedTowerType = type;
                 game.selectedTowerInstance = null;
@@ -713,21 +830,26 @@
         function sellTower() {
             if (game.selectedTowerInstance) {
                 const tower = game.selectedTowerInstance;
-                
+
                 // Calculate sell value (50% of total investment)
                 const baseCost = towerTypes[tower.type].baseCost;
                 let totalInvestment = baseCost;
-                
+
                 // Add upgrade costs
                 for (let i = 0; i < tower.level; i++) {
                     totalInvestment += Math.floor(baseCost * (1.5 ** (i + 1)));
                 }
-                
+
                 const sellValue = Math.floor(totalInvestment * 0.5);
-                
+
                 // Remove tower and give gold
                 const towerIndex = towers.indexOf(tower);
                 if (towerIndex > -1) {
+                    // Unmark hero if selling hero
+                    if (tower.type === 'hero') {
+                        game.heroPlaced = false;
+                    }
+
                     towers.splice(towerIndex, 1);
                     game.gold += sellValue;
                     game.selectedTowerInstance = null;
@@ -838,11 +960,17 @@
         
         function placeTower(x, y) {
             if (!game.selectedTowerType || !canPlaceTower(x, y)) return;
-            
+
             const cost = towerTypes[game.selectedTowerType].baseCost;
             if (game.gold >= cost) {
                 towers.push(new Tower(x, y, game.selectedTowerType));
                 game.gold -= cost;
+
+                // Mark hero as placed if it's a hero
+                if (game.selectedTowerType === 'hero') {
+                    game.heroPlaced = true;
+                }
+
                 game.selectedTowerType = null;
                 updateUI();
             }
@@ -898,7 +1026,13 @@
         function checkMapProgression() {
             const currentMapData = getCurrentMap();
             const waveInMap = ((game.wave - 1) % currentMapData.waves) + 1;
-            
+
+            // Check if we completed the final map (VICTORY!)
+            if (waveInMap === currentMapData.waves && game.currentMap === mapData.length - 1) {
+                game.victory = true;
+                return true;
+            }
+
             // Check if we completed a map (except the final castle map)
             if (waveInMap === currentMapData.waves && game.currentMap < mapData.length - 1) {
                 game.currentMap++;
@@ -910,24 +1044,74 @@
         
         function showMapTransition() {
             const newMap = getCurrentMap();
-            
+
             // Show transition message
             ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+
             ctx.fillStyle = '#FFD700';
             ctx.font = '36px Arial';
             ctx.textAlign = 'center';
             ctx.fillText('MAP COMPLETE!', canvas.width/2, canvas.height/2 - 60);
-            
+
             ctx.fillStyle = '#FFFFFF';
             ctx.font = '24px Arial';
             ctx.fillText(newMap.name, canvas.width/2, canvas.height/2 - 10);
-            
+
             ctx.font = '16px Arial';
             ctx.fillText(newMap.description, canvas.width/2, canvas.height/2 + 20);
-            
+
             ctx.fillText('Press any key to continue...', canvas.width/2, canvas.height/2 + 60);
+        }
+
+        function showVictoryScreen() {
+            // Clear canvas with dark background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Add celebratory background effects
+            const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, 400);
+            gradient.addColorStop(0, 'rgba(255, 215, 0, 0.3)');
+            gradient.addColorStop(0.5, 'rgba(76, 175, 80, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Main victory message
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('VICTORY!', canvas.width/2, canvas.height/2 - 120);
+
+            // Castle emoji
+            ctx.font = '80px Arial';
+            ctx.fillText('🏰', canvas.width/2, canvas.height/2 - 40);
+
+            // Secondary message
+            ctx.fillStyle = '#4CAF50';
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText('The Kingdom Has Been Saved!', canvas.width/2, canvas.height/2 + 60);
+
+            // Stats
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Waves Completed: ${game.wave - 1}`, canvas.width/2, canvas.height/2 + 110);
+            ctx.fillText(`Gold Remaining: ${game.gold}`, canvas.width/2, canvas.height/2 + 140);
+            ctx.fillText(`Lives Remaining: ${game.lives}`, canvas.width/2, canvas.height/2 + 170);
+
+            // Celebration message
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'italic 18px Arial';
+            ctx.fillText('The enemy forces have been defeated!', canvas.width/2, canvas.height/2 + 220);
+
+            // Trophy emojis
+            ctx.font = '32px Arial';
+            ctx.fillText('🏆', canvas.width/2 - 100, canvas.height/2 + 280);
+            ctx.fillText('⭐', canvas.width/2 - 50, canvas.height/2 + 280);
+            ctx.fillText('🎉', canvas.width/2, canvas.height/2 + 280);
+            ctx.fillText('⭐', canvas.width/2 + 50, canvas.height/2 + 280);
+            ctx.fillText('🏆', canvas.width/2 + 100, canvas.height/2 + 280);
         }
         
         function generateWaveComposition(wave) {
@@ -999,7 +1183,7 @@
                             proj.target.pathIndex = 0;
                             proj.target.x = path[0].x;
                             proj.target.y = path[0].y;
-                            
+
                             // Wind spell does normal damage and provides massive utility
                             const destroyed = proj.target.takeDamage(proj.damage);
                             if (destroyed) {
@@ -1010,6 +1194,11 @@
                             const destroyed = proj.target.takeDamage(proj.damage);
                             if (destroyed) {
                                 enemies.splice(enemies.indexOf(proj.target), 1);
+                            } else if (proj.fireDamage && proj.fireDamage > 0) {
+                                // Apply fire damage over time from catapult
+                                proj.target.burning = true;
+                                proj.target.burnDamage = proj.fireDamage;
+                                proj.target.burnDuration = 180; // 3 seconds at 60 fps
                             }
                         }
                     }
@@ -1294,31 +1483,41 @@
         
         function drawProjectiles() {
             for (let proj of projectiles) {
-                // Different colors for different spell types
-                if (proj.spellType === 'wind') {
-                    ctx.fillStyle = '#87CEEB'; // Sky blue for wind
-                } else if (proj.spellType === 'fire') {
-                    ctx.fillStyle = '#FF4500'; // Orange red for fire
-                } else if (proj.spellType === 'ice') {
-                    ctx.fillStyle = '#00BFFF'; // Deep sky blue for ice
-                } else if (proj.spellType === 'lightning') {
-                    ctx.fillStyle = '#FFFF00'; // Yellow for lightning
-                } else {
-                    ctx.fillStyle = '#FFD700'; // Gold for normal projectiles
+                // Catapult projectiles (rocks with optional fire)
+                if (proj.towerType === 'catapult') {
+                    // Draw rock
+                    ctx.fillStyle = '#696969';
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Add fire trail if it has fire damage
+                    if (proj.fireDamage && proj.fireDamage > 0) {
+                        ctx.fillStyle = '#FF4500';
+                        ctx.beginPath();
+                        ctx.arc(proj.x - 3, proj.y - 3, 4, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.fillStyle = '#FFA500';
+                        ctx.beginPath();
+                        ctx.arc(proj.x + 2, proj.y + 2, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                 }
-                
-                ctx.beginPath();
-                ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Add wind effect visual - more dramatic for powerful effect
-                if (proj.spellType === 'wind') {
+                // Different colors for different spell types
+                else if (proj.spellType === 'wind') {
+                    ctx.fillStyle = '#87CEEB'; // Sky blue for wind
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Add wind effect visual - more dramatic for powerful effect
                     ctx.strokeStyle = '#B0E0E6';
                     ctx.lineWidth = 3;
                     ctx.beginPath();
                     ctx.arc(proj.x, proj.y, 12, 0, Math.PI * 2);
                     ctx.stroke();
-                    
+
                     // Add swirling wind lines
                     ctx.strokeStyle = '#87CEEB';
                     ctx.lineWidth = 2;
@@ -1327,6 +1526,26 @@
                         ctx.arc(proj.x, proj.y, 6 + (i * 3), 0, Math.PI * 1.5);
                         ctx.stroke();
                     }
+                } else if (proj.spellType === 'fire') {
+                    ctx.fillStyle = '#FF4500'; // Orange red for fire
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (proj.spellType === 'ice') {
+                    ctx.fillStyle = '#00BFFF'; // Deep sky blue for ice
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (proj.spellType === 'lightning') {
+                    ctx.fillStyle = '#FFFF00'; // Yellow for lightning
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = '#FFD700'; // Gold for normal projectiles
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
                 }
             }
         }
@@ -1347,12 +1566,19 @@
                 const button = document.getElementById(type + 'Tower');
                 if (button) {
                     const cost = towerTypes[type].baseCost;
-                    button.disabled = game.gold < cost;
-                    if (game.selectedTowerType === type) {
-                        button.style.background = 'linear-gradient(45deg, #FFD700, #FFA500)';
+
+                    // Disable hero button if already placed
+                    if (type === 'hero' && game.heroPlaced) {
+                        button.disabled = true;
+                        button.style.background = '#666';
                     } else {
-                        button.style.background = game.gold >= cost ? 
-                            'linear-gradient(45deg, #4CAF50, #45a049)' : '#666';
+                        button.disabled = game.gold < cost;
+                        if (game.selectedTowerType === type) {
+                            button.style.background = 'linear-gradient(45deg, #FFD700, #FFA500)';
+                        } else {
+                            button.style.background = game.gold >= cost ?
+                                'linear-gradient(45deg, #4CAF50, #45a049)' : '#666';
+                        }
                     }
                 }
             }
@@ -1454,19 +1680,25 @@
             
             // Update UI
             updateUI();
-            
+
+            // Check victory
+            if (game.victory) {
+                showVictoryScreen();
+                return;
+            }
+
             // Check game over
             if (game.lives <= 0) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
+
                 ctx.fillStyle = '#FF0000';
                 ctx.font = '48px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
                 return;
             }
-            
+
             requestAnimationFrame(gameLoop);
         }
         
