@@ -225,47 +225,128 @@
         // Map definitions with different themes and objectives
         const mapData = [
             {
-                name: "🌉 Defend the Bridge",
-                description: "Protect the ancient stone bridge from goblin raiders",
+                name: "🌾 Field & Bridge",
+                description: "Defend the countryside and stone bridge from goblin raiders",
                 waves: 25,
                 objective: "Bridge",
                 backgroundColor: '#4CAF50',
                 pathColor: '#8B4513',
-                pathCenterColor: '#D2691E'
+                pathCenterColor: '#D2691E',
+                path: [
+                    {x: 0, y: 300},      // Enter from left
+                    {x: 150, y: 300},
+                    {x: 200, y: 200},    // Curve up
+                    {x: 300, y: 150},
+                    {x: 400, y: 200},    // Curve down
+                    {x: 500, y: 300},    // Bridge area
+                    {x: 600, y: 400},    // Loop down
+                    {x: 500, y: 450},
+                    {x: 400, y: 400},
+                    {x: 350, y: 350},
+                    {x: 400, y: 300},
+                    {x: 550, y: 250},
+                    {x: 700, y: 200},
+                    {x: 800, y: 200}     // Exit right
+                ]
             },
             {
                 name: "🏔️ Mountain Pass",
-                description: "Guard the treacherous mountain pass from orc invaders", 
+                description: "Guard the treacherous mountain switchbacks from orc invaders",
                 waves: 25,
                 objective: "Pass",
                 backgroundColor: '#8D6E63',
                 pathColor: '#5D4037',
-                pathCenterColor: '#795548'
+                pathCenterColor: '#795548',
+                path: [
+                    {x: 0, y: 500},      // Enter bottom left
+                    {x: 150, y: 500},
+                    {x: 200, y: 450},
+                    {x: 250, y: 400},    // First switchback
+                    {x: 300, y: 350},
+                    {x: 250, y: 300},
+                    {x: 200, y: 250},
+                    {x: 250, y: 200},    // Second switchback
+                    {x: 350, y: 150},
+                    {x: 450, y: 200},
+                    {x: 500, y: 250},    // Third switchback
+                    {x: 550, y: 300},
+                    {x: 600, y: 350},
+                    {x: 650, y: 400},
+                    {x: 700, y: 450},
+                    {x: 800, y: 450}     // Exit right
+                ]
             },
             {
-                name: "🏰 Defend the Castle",
+                name: "🕯️ Dark Dungeon",
+                description: "Navigate the twisting corridors of the ancient dungeon",
+                waves: 25,
+                objective: "Dungeon",
+                backgroundColor: '#2C2C2C',
+                pathColor: '#1A1A1A',
+                pathCenterColor: '#3D3D3D',
+                path: [
+                    {x: 0, y: 100},      // Enter top left
+                    {x: 150, y: 100},
+                    {x: 150, y: 250},    // Down
+                    {x: 300, y: 250},    // Right
+                    {x: 300, y: 150},    // Up
+                    {x: 450, y: 150},    // Right
+                    {x: 450, y: 350},    // Down
+                    {x: 250, y: 350},    // Left
+                    {x: 250, y: 450},    // Down
+                    {x: 450, y: 450},    // Right
+                    {x: 450, y: 500},    // Down
+                    {x: 600, y: 500},    // Right
+                    {x: 600, y: 300},    // Up
+                    {x: 700, y: 300},    // Right
+                    {x: 700, y: 150},    // Up
+                    {x: 800, y: 150}     // Exit right
+                ]
+            },
+            {
+                name: "🏰 Castle Defense",
                 description: "Make your final stand at the royal castle gates",
-                waves: 50,
+                waves: 25,
                 objective: "Castle",
                 backgroundColor: '#607D8B',
                 pathColor: '#37474F',
-                pathCenterColor: '#546E7A'
+                pathCenterColor: '#546E7A',
+                path: [
+                    {x: 0, y: 550},      // Enter bottom left
+                    {x: 150, y: 550},
+                    {x: 200, y: 500},    // Spiral inward
+                    {x: 200, y: 400},
+                    {x: 150, y: 350},
+                    {x: 150, y: 250},
+                    {x: 200, y: 200},
+                    {x: 300, y: 150},
+                    {x: 400, y: 150},
+                    {x: 500, y: 200},
+                    {x: 600, y: 250},
+                    {x: 650, y: 300},
+                    {x: 650, y: 400},
+                    {x: 600, y: 450},
+                    {x: 500, y: 500},
+                    {x: 400, y: 500},
+                    {x: 350, y: 450},
+                    {x: 350, y: 350},
+                    {x: 400, y: 300},
+                    {x: 500, y: 280},
+                    {x: 600, y: 300},
+                    {x: 700, y: 350},
+                    {x: 800, y: 400}     // Exit to castle
+                ]
             }
         ];
         
         let towers = [];
         let enemies = [];
         let projectiles = [];
-        
-        // Game path (goes to edges)
-        const path = [
-            {x: 0, y: 300},
-            {x: 200, y: 300},
-            {x: 300, y: 200},
-            {x: 500, y: 200},
-            {x: 600, y: 400},
-            {x: 800, y: 400}
-        ];
+
+        // Get current path based on map
+        function getCurrentPath() {
+            return mapData[game.currentMap].path;
+        }
         
         // Tower types with upgrade levels
         const towerTypes = {
@@ -333,25 +414,26 @@
         };
 
         // Enemy types with balanced immunities (each tower has one counter)
+        // Speeds reduced by ~30% to give players more time to react and use abilities
         const enemyTypes = {
-            basic: { 
-                name: "👾 Goblin", baseHealth: 50, baseSpeed: 1.0, color: '#FF6B6B', size: 12, 
+            basic: {
+                name: "👾 Goblin", baseHealth: 50, baseSpeed: 0.7, color: '#FF6B6B', size: 12,
                 abilities: [], immunities: ['wizard'], liveDamage: 1 // Magic resistant
             },
-            fast: { 
-                name: "🏃 Scout", baseHealth: 30, baseSpeed: 1.8, color: '#FFD700', size: 10, 
+            fast: {
+                name: "🏃 Scout", baseHealth: 30, baseSpeed: 1.3, color: '#FFD700', size: 10,
                 abilities: ['speed_boost'], immunities: ['ninja'], liveDamage: 1 // Too fast for ninja
             },
-            heavy: { 
-                name: "🛡️ Armored Orc", baseHealth: 120, baseSpeed: 0.6, color: '#8B4513', size: 16, 
+            heavy: {
+                name: "🛡️ Armored Orc", baseHealth: 120, baseSpeed: 0.4, color: '#8B4513', size: 16,
                 abilities: ['armor'], immunities: ['archer'], liveDamage: 3 // Armor blocks arrows
             },
-            flying: { 
-                name: "🦅 Wyvern", baseHealth: 80, baseSpeed: 1.2, color: '#9370DB', size: 14, 
+            flying: {
+                name: "🦅 Wyvern", baseHealth: 80, baseSpeed: 0.9, color: '#9370DB', size: 14,
                 abilities: ['flying'], immunities: ['cannon'], liveDamage: 2 // Too agile for slow crystals
             },
-            boss: { 
-                name: "👹 Demon Lord", baseHealth: 300, baseSpeed: 0.7, color: '#8B0000', size: 20, 
+            boss: {
+                name: "👹 Demon Lord", baseHealth: 300, baseSpeed: 0.5, color: '#8B0000', size: 20,
                 abilities: ['boss_aura'], immunities: [], liveDamage: 10 // No immunities - all towers work
             }
         };
@@ -573,20 +655,21 @@
             constructor(type, wave) {
                 this.type = type;
                 this.enemyData = enemyTypes[type];
-                
+
                 // Scale stats based on wave (balanced scaling)
                 const waveMultiplier = 1 + (wave * 0.15);
                 const healthMultiplier = 1 + (wave * 0.25); // Reduced for better balance
-                
+
                 this.health = Math.floor(this.enemyData.baseHealth * healthMultiplier);
                 this.maxHealth = this.health;
                 this.speed = this.enemyData.baseSpeed * Math.min(waveMultiplier, 2.5);
                 this.reward = 15 + Math.floor(wave * 2); // Better base reward for economy
-                
+
                 // Position and movement
                 this.pathIndex = 0;
-                this.x = path[0].x;
-                this.y = path[0].y;
+                const currentPath = getCurrentPath();
+                this.x = currentPath[0].x;
+                this.y = currentPath[0].y;
                 this.progress = 0;
                 
                 // Special abilities and immunities
@@ -606,7 +689,8 @@
             }
             
             update() {
-                if (this.pathIndex >= path.length - 1) return false;
+                const currentPath = getCurrentPath();
+                if (this.pathIndex >= currentPath.length - 1) return false;
 
                 this.animationFrame++;
 
@@ -618,7 +702,7 @@
                         this.burning = false;
                     }
                 }
-                
+
                 // Speed boost ability (for scouts)
                 let currentSpeed = this.speed;
                 if (this.abilities.includes('speed_boost')) {
@@ -630,7 +714,7 @@
                         this.speedBoostTimer = 0;
                     }
                 }
-                
+
                 // Boss aura effect (makes nearby enemies faster)
                 if (this.abilities.includes('boss_aura')) {
                     for (let enemy of enemies) {
@@ -642,33 +726,33 @@
                         }
                     }
                 }
-                
-                const current = path[this.pathIndex];
-                const next = path[this.pathIndex + 1];
-                
+
+                const current = currentPath[this.pathIndex];
+                const next = currentPath[this.pathIndex + 1];
+
                 const dx = next.x - current.x;
                 const dy = next.y - current.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
-                
+
                 this.progress += currentSpeed / distance;
-                
+
                 if (this.progress >= 1) {
                     this.pathIndex++;
                     this.progress = 0;
-                    
-                    if (this.pathIndex >= path.length - 1) {
+
+                    if (this.pathIndex >= currentPath.length - 1) {
                         // Different enemies cause different amounts of damage
                         game.lives -= this.liveDamage;
                         return false;
                     }
                 }
-                
-                const current2 = path[this.pathIndex];
-                const next2 = path[this.pathIndex + 1];
-                
+
+                const current2 = currentPath[this.pathIndex];
+                const next2 = currentPath[this.pathIndex + 1];
+
                 this.x = current2.x + (next2.x - current2.x) * this.progress;
                 this.y = current2.y + (next2.y - current2.y) * this.progress;
-                
+
                 return true;
             }
             
@@ -915,9 +999,10 @@
         
         function canPlaceTower(x, y) {
             // Check if too close to path (more thorough check)
-            for (let i = 0; i < path.length - 1; i++) {
-                const p1 = path[i];
-                const p2 = path[i + 1];
+            const currentPath = getCurrentPath();
+            for (let i = 0; i < currentPath.length - 1; i++) {
+                const p1 = currentPath[i];
+                const p2 = currentPath[i + 1];
                 
                 // Check distance to path segment
                 const A = x - p1.x;
@@ -1180,9 +1265,10 @@
                         // Handle wind spell effect
                         if (proj.spellType === 'wind') {
                             // Push enemy all the way back to the beginning of the path!
+                            const currentPath = getCurrentPath();
                             proj.target.pathIndex = 0;
-                            proj.target.x = path[0].x;
-                            proj.target.y = path[0].y;
+                            proj.target.x = currentPath[0].x;
+                            proj.target.y = currentPath[0].y;
 
                             // Wind spell does normal damage and provides massive utility
                             const destroyed = proj.target.takeDamage(proj.damage);
@@ -1393,7 +1479,8 @@
         
         function drawObjective() {
             const currentMapData = getCurrentMap();
-            const endPoint = path[path.length - 1];
+            const currentPath = getCurrentPath();
+            const endPoint = currentPath[currentPath.length - 1];
             
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -1403,18 +1490,18 @@
                     // Draw bridge structure
                     ctx.fillStyle = '#8B7355';
                     ctx.fillRect(endPoint.x - 30, endPoint.y - 15, 60, 30);
-                    
+
                     // Bridge supports
                     ctx.fillStyle = '#654321';
                     ctx.fillRect(endPoint.x - 25, endPoint.y - 10, 8, 20);
                     ctx.fillRect(endPoint.x + 17, endPoint.y - 10, 8, 20);
-                    
+
                     // Bridge emoji
                     ctx.fillStyle = '#FFFFFF';
                     ctx.font = '24px Arial';
                     ctx.fillText('🌉', endPoint.x, endPoint.y - 30);
                     break;
-                    
+
                 case 'Pass':
                     // Draw mountain pass
                     ctx.fillStyle = '#8D6E63';
@@ -1425,26 +1512,43 @@
                     ctx.lineTo(endPoint.x + 40, endPoint.y + 20);
                     ctx.closePath();
                     ctx.fill();
-                    
+
                     // Mountain emoji
                     ctx.fillStyle = '#FFFFFF';
                     ctx.font = '24px Arial';
                     ctx.fillText('🏔️', endPoint.x, endPoint.y - 40);
                     break;
-                    
+
+                case 'Dungeon':
+                    // Draw dungeon entrance
+                    ctx.fillStyle = '#1A1A1A';
+                    ctx.fillRect(endPoint.x - 35, endPoint.y - 25, 70, 50);
+
+                    // Stone archway
+                    ctx.fillStyle = '#4A4A4A';
+                    ctx.fillRect(endPoint.x - 30, endPoint.y - 20, 8, 45);
+                    ctx.fillRect(endPoint.x + 22, endPoint.y - 20, 8, 45);
+                    ctx.fillRect(endPoint.x - 30, endPoint.y - 20, 60, 10);
+
+                    // Dungeon emoji
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = '24px Arial';
+                    ctx.fillText('🕯️', endPoint.x, endPoint.y - 35);
+                    break;
+
                 case 'Castle':
                     // Draw castle
                     ctx.fillStyle = '#757575';
                     ctx.fillRect(endPoint.x - 35, endPoint.y - 20, 70, 40);
-                    
+
                     // Castle towers
                     ctx.fillRect(endPoint.x - 40, endPoint.y - 30, 15, 30);
                     ctx.fillRect(endPoint.x + 25, endPoint.y - 30, 15, 30);
-                    
+
                     // Castle gate
                     ctx.fillStyle = '#424242';
                     ctx.fillRect(endPoint.x - 10, endPoint.y - 5, 20, 25);
-                    
+
                     // Castle emoji
                     ctx.fillStyle = '#FFFFFF';
                     ctx.font = '24px Arial';
@@ -1455,28 +1559,29 @@
         
         function drawPath() {
             const currentMapData = getCurrentMap();
-            
+            const currentPath = getCurrentPath();
+
             // Draw path background
             ctx.strokeStyle = currentMapData.pathColor;
             ctx.lineWidth = 40;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-            
+
             ctx.beginPath();
-            ctx.moveTo(path[0].x, path[0].y);
-            for (let i = 1; i < path.length; i++) {
-                ctx.lineTo(path[i].x, path[i].y);
+            ctx.moveTo(currentPath[0].x, currentPath[0].y);
+            for (let i = 1; i < currentPath.length; i++) {
+                ctx.lineTo(currentPath[i].x, currentPath[i].y);
             }
             ctx.stroke();
-            
+
             // Draw path center
             ctx.strokeStyle = currentMapData.pathCenterColor;
             ctx.lineWidth = 30;
-            
+
             ctx.beginPath();
-            ctx.moveTo(path[0].x, path[0].y);
-            for (let i = 1; i < path.length; i++) {
-                ctx.lineTo(path[i].x, path[i].y);
+            ctx.moveTo(currentPath[0].x, currentPath[0].y);
+            for (let i = 1; i < currentPath.length; i++) {
+                ctx.lineTo(currentPath[i].x, currentPath[i].y);
             }
             ctx.stroke();
         }
