@@ -234,7 +234,9 @@
             },
             savedTowers: [], // Stores tower objects with their levels for repositioning
             placementMode: false,
-            levelTransition: false
+            levelTransition: false,
+            bossWarning: false,
+            bossWarningMap: 0
         };
         
         // Map definitions with different themes and objectives
@@ -1192,7 +1194,23 @@
         
         function startWave() {
             if (game.waveActive || game.placementMode) return;
-            
+
+            // Check if this will be a boss wave (wave 25 of current map)
+            const currentMapData = getCurrentMap();
+            const waveInMap = ((game.wave - 1) % currentMapData.waves) + 1;
+            const isBossWave = waveInMap === 25;
+
+            // Show boss warning instead of starting wave
+            if (isBossWave && !game.bossWarning) {
+                game.bossWarning = true;
+                game.bossWarningMap = game.currentMap;
+                updateUI();
+                return;
+            }
+
+            // Clear boss warning flag when starting the actual boss wave
+            game.bossWarning = false;
+
             game.waveActive = true;
             
             // Generate wave composition based on wave number
@@ -1368,7 +1386,115 @@
             ctx.fillText('⭐', canvas.width/2 + 50, canvas.height/2 + 250);
             ctx.fillText('🏆', canvas.width/2 + 100, canvas.height/2 + 250);
         }
-        
+
+        function showBossWarning() {
+            // Dark overlay with dramatic effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Different warning for each level
+            const bossWarnings = [
+                {
+                    // Level 1: Giant Robot
+                    title: '⚠️ BOSS BATTLE ⚠️',
+                    subtitle: 'MALFUNCTION DETECTED',
+                    message: 'A GIANT ROBOT approaches!',
+                    description: 'System override... combat protocols engaged...',
+                    emoji: '🤖',
+                    color1: '#FF0000',
+                    color2: '#708090',
+                    effect: 'HEAVY ARMOR DETECTED'
+                },
+                {
+                    // Level 2: Mountain Dragon
+                    title: '🔥 BOSS BATTLE 🔥',
+                    subtitle: 'ANCIENT TERROR AWAKENS',
+                    message: 'The MOUNTAIN DRAGON descends!',
+                    description: 'Wings blot out the sun... fire fills the sky...',
+                    emoji: '🐉',
+                    color1: '#DC143C',
+                    color2: '#FF6347',
+                    effect: 'AIRBORNE THREAT'
+                },
+                {
+                    // Level 3: Dungeon Lich
+                    title: '💀 BOSS BATTLE 💀',
+                    subtitle: 'THE DARKNESS STIRS',
+                    message: 'The DUNGEON LICH emerges!',
+                    description: 'Dark magic crackles... reality bends...',
+                    emoji: '👻',
+                    color1: '#8A2BE2',
+                    color2: '#9370DB',
+                    effect: 'TELEPORTATION MAGIC'
+                },
+                {
+                    // Level 4: Spider Queen (FINAL BOSS)
+                    title: '🕷️ FINAL BOSS 🕷️',
+                    subtitle: 'THE QUEEN AWAKENS',
+                    message: 'The SPIDER QUEEN emerges!',
+                    description: 'Eight legs... countless eggs... THIS IS IT!',
+                    emoji: '🕷️',
+                    color1: '#2F4F4F',
+                    color2: '#FF0000',
+                    effect: 'SPAWN ON DEATH - DEFEAT ALL BABIES!'
+                }
+            ];
+
+            const warning = bossWarnings[game.bossWarningMap];
+
+            // Pulsing background effect
+            const pulseSize = 300 + Math.sin(Date.now() / 200) * 50;
+            const gradient = ctx.createRadialGradient(
+                canvas.width/2, canvas.height/2, 0,
+                canvas.width/2, canvas.height/2, pulseSize
+            );
+            gradient.addColorStop(0, `${warning.color1}66`);
+            gradient.addColorStop(0.5, `${warning.color2}33`);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Title with flashing effect
+            const flashIntensity = Math.sin(Date.now() / 150) * 0.3 + 0.7;
+            ctx.fillStyle = `rgba(255, 0, 0, ${flashIntensity})`;
+            ctx.font = 'bold 52px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(warning.title, canvas.width/2, canvas.height/2 - 180);
+
+            // Subtitle
+            ctx.fillStyle = warning.color2;
+            ctx.font = 'bold 20px Arial';
+            ctx.fillText(warning.subtitle, canvas.width/2, canvas.height/2 - 130);
+
+            // Boss emoji (large and dramatic)
+            ctx.font = '80px Arial';
+            ctx.fillText(warning.emoji, canvas.width/2, canvas.height/2 - 50);
+
+            // Boss message
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText(warning.message, canvas.width/2, canvas.height/2 + 50);
+
+            // Description
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'italic 18px Arial';
+            ctx.fillText(warning.description, canvas.width/2, canvas.height/2 + 90);
+
+            // Effect warning
+            ctx.fillStyle = warning.color1;
+            ctx.font = 'bold 16px Arial';
+            ctx.fillRect(canvas.width/2 - 200, canvas.height/2 + 120, 400, 40);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillText(warning.effect, canvas.width/2, canvas.height/2 + 140);
+
+            // Click to continue (pulsing)
+            const clickPulse = Math.sin(Date.now() / 300) * 0.5 + 0.5;
+            ctx.fillStyle = `rgba(255, 255, 255, ${clickPulse})`;
+            ctx.font = 'bold 24px Arial';
+            ctx.fillText('>>> CLICK TO BEGIN BATTLE <<<', canvas.width/2, canvas.height/2 + 210);
+        }
+
         function spawnBabySpiders(x, y) {
             // Spawn 35 baby spiders in a scattered pattern around where the queen died
             const babyCount = 35;
@@ -1982,6 +2108,21 @@
                 waveButton.style.display = 'block';
                 readyButton.style.display = 'none';
                 waveButton.disabled = game.waveActive;
+
+                // Update button text for boss waves
+                const currentMapData = getCurrentMap();
+                const waveInMap = ((game.wave - 1) % currentMapData.waves) + 1;
+                const isBossWave = waveInMap === 25;
+
+                if (isBossWave && !game.waveActive) {
+                    waveButton.textContent = '⚠️ BOSS BATTLE ⚠️';
+                    waveButton.style.background = 'linear-gradient(45deg, #FF0000, #DC143C)';
+                } else if (game.waveActive) {
+                    waveButton.textContent = '⏳ Wave in Progress';
+                } else {
+                    waveButton.textContent = '🚀 Start Wave';
+                    waveButton.style.background = 'linear-gradient(45deg, #ff6b6b, #ee5a52)';
+                }
             }
             
             // Update auto-wave status
@@ -2056,6 +2197,11 @@
             // Update UI
             updateUI();
 
+            // Show boss warning screen
+            if (game.bossWarning) {
+                showBossWarning();
+            }
+
             // Check victory
             if (game.victory) {
                 showVictoryScreen();
@@ -2082,14 +2228,20 @@
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            
+
+            // Handle boss warning click - start the boss wave
+            if (game.bossWarning) {
+                startWave();
+                return;
+            }
+
             // Check if clicking on existing tower
             const clickedTower = getTowerAt(x, y);
             if (clickedTower) {
                 selectTowerInstance(clickedTower);
                 return;
             }
-            
+
             // Place new tower
             if (game.selectedTowerType) {
                 placeTower(x, y);
@@ -2099,18 +2251,23 @@
         });
         
         canvas.addEventListener('mousemove', (e) => {
+            if (game.bossWarning) {
+                canvas.style.cursor = 'pointer';
+                return;
+            }
+
             if (game.selectedTowerType) {
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
-                
+
                 canvas.style.cursor = canPlaceTower(x, y) ? 'crosshair' : 'not-allowed';
             } else {
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
                 const tower = getTowerAt(x, y);
-                
+
                 canvas.style.cursor = tower ? 'pointer' : 'default';
             }
         });
