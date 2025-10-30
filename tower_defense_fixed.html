@@ -173,7 +173,28 @@
                     Cancel
                 </button>
             </div>
-            
+
+            <!-- Hero Abilities Section -->
+            <div id="heroAbilitiesSection" style="display: none; margin-top: 20px; padding: 15px; background: rgba(255,215,0,0.15); border-radius: 5px; border: 2px solid #FFD700;">
+                <h4 style="color: #FFD700; margin-top: 0;">⚔️ Hero Abilities</h4>
+                <p style="font-size: 11px; margin-bottom: 10px;">Max level hero unlocks special powers!</p>
+
+                <button class="tower-button" id="scatterShotButton" onclick="useHeroAbility('scatterShot')" style="background: linear-gradient(45deg, #FF6347, #FF4500); font-size: 13px; padding: 8px;">
+                    💥 Scatter Shot (1000g)
+                </button>
+                <div id="scatterShotCooldown" style="font-size: 10px; margin-bottom: 8px; color: #FFD700;"></div>
+
+                <button class="tower-button" id="bombTrackButton" onclick="useHeroAbility('bombTrack')" style="background: linear-gradient(45deg, #8B4513, #A0522D); font-size: 13px; padding: 8px;">
+                    💣 Bomb Track (5000g)
+                </button>
+                <div id="bombTrackCooldown" style="font-size: 10px; margin-bottom: 8px; color: #FFD700;"></div>
+
+                <button class="tower-button" id="nuclearStrikeButton" onclick="useHeroAbility('nuclearStrike')" style="background: linear-gradient(45deg, #228B22, #006400); font-size: 13px; padding: 8px;">
+                    ☢️ Nuclear Strike (10000g)
+                </button>
+                <div id="nuclearStrikeCooldown" style="font-size: 10px; color: #FFD700;"></div>
+            </div>
+
             <div style="margin-top: 20px; font-size: 11px; opacity: 0.8;">
                 <p>💡 <strong>How to Play:</strong></p>
                 <p>• Click tower type, then click to place</p>
@@ -236,7 +257,41 @@
             placementMode: false,
             levelTransition: false,
             bossWarning: false,
-            bossWarningMap: 0
+            bossWarningMap: 0,
+            heroAbilities: {
+                scatterShot: { unlocked: false, cooldown: 0 },
+                bombTrack: { unlocked: false, cooldown: 0 },
+                nuclearStrike: { unlocked: false, cooldown: 0 }
+            }
+        };
+
+        // Hero special abilities (unlocked when hero reaches max level)
+        const heroAbilityData = {
+            scatterShot: {
+                name: "💥 Scatter Shot",
+                cost: 1000,
+                cooldownTime: 600, // 10 seconds at 60fps
+                description: "Fire 20 powerful shots in all directions",
+                icon: "💥",
+                damage: 150
+            },
+            bombTrack: {
+                name: "💣 Bomb the Track",
+                cost: 5000,
+                cooldownTime: 1800, // 30 seconds
+                description: "Place explosive bombs along the entire path",
+                icon: "💣",
+                bombCount: 15,
+                damage: 300,
+                radius: 80
+            },
+            nuclearStrike: {
+                name: "☢️ Nuclear Strike",
+                cost: 10000,
+                cooldownTime: 3600, // 60 seconds
+                description: "Obliterate ALL enemies on screen!",
+                icon: "☢️"
+            }
         };
         
         // Map definitions with different themes and objectives
@@ -1038,6 +1093,143 @@
             }
         }
         
+        // Hero ability functions
+        function getMaxLevelHero() {
+            for (let tower of towers) {
+                if (tower.type === 'hero' && tower.level === 3) { // Max level (level 3 = 4th upgrade)
+                    return tower;
+                }
+            }
+            return null;
+        }
+
+        function useHeroAbility(abilityName) {
+            const hero = getMaxLevelHero();
+            if (!hero) {
+                return; // No max level hero
+            }
+
+            const ability = heroAbilityData[abilityName];
+            const abilityState = game.heroAbilities[abilityName];
+
+            // Check if can afford and not on cooldown
+            if (game.gold < ability.cost) return;
+            if (abilityState.cooldown > 0) return;
+
+            // Spend gold and start cooldown
+            game.gold -= ability.cost;
+            abilityState.cooldown = ability.cooldownTime;
+            abilityState.unlocked = true;
+
+            // Execute ability
+            switch(abilityName) {
+                case 'scatterShot':
+                    activateScatterShot(hero);
+                    break;
+                case 'bombTrack':
+                    activateBombTrack();
+                    break;
+                case 'nuclearStrike':
+                    activateNuclearStrike();
+                    break;
+            }
+
+            updateUI();
+        }
+
+        function activateScatterShot(hero) {
+            const ability = heroAbilityData.scatterShot;
+            const shotCount = 20;
+
+            // Fire shots in all directions
+            for (let i = 0; i < shotCount; i++) {
+                const angle = (i / shotCount) * Math.PI * 2;
+                const distance = 300;
+                const targetX = hero.x + Math.cos(angle) * distance;
+                const targetY = hero.y + Math.sin(angle) * distance;
+
+                projectiles.push({
+                    x: hero.x,
+                    y: hero.y,
+                    targetX: targetX,
+                    targetY: targetY,
+                    target: null, // No specific target, will hit first enemy in path
+                    damage: ability.damage,
+                    speed: 10,
+                    spellType: 'scatterShot',
+                    towerType: 'hero',
+                    isAbility: true
+                });
+            }
+        }
+
+        function activateBombTrack() {
+            const ability = heroAbilityData.bombTrack;
+            const currentPath = getCurrentPath();
+            const bombSpacing = Math.floor(currentPath.length / ability.bombCount);
+
+            // Place bombs along the path
+            for (let i = 0; i < ability.bombCount; i++) {
+                const pathIndex = Math.min(i * bombSpacing, currentPath.length - 1);
+                const pos = currentPath[pathIndex];
+
+                // Create bomb projectile that explodes on contact
+                projectiles.push({
+                    x: pos.x,
+                    y: pos.y,
+                    targetX: pos.x,
+                    targetY: pos.y,
+                    target: null,
+                    damage: ability.damage,
+                    radius: ability.radius,
+                    speed: 0, // Stationary
+                    spellType: 'bomb',
+                    towerType: 'hero',
+                    isAbility: true,
+                    isBomb: true,
+                    lifetime: 300 // 5 seconds
+                });
+            }
+        }
+
+        function activateNuclearStrike() {
+            // Kill all enemies on screen
+            const enemiesKilled = enemies.length;
+            let goldEarned = 0;
+
+            for (let enemy of enemies) {
+                goldEarned += enemy.reward;
+            }
+
+            enemies.length = 0; // Clear all enemies
+            game.gold += goldEarned;
+
+            // Show dramatic effect
+            showNuclearEffect();
+        }
+
+        function showNuclearEffect() {
+            const effectDuration = 120; // 2 seconds
+            let effectFrame = 0;
+
+            const nuclearInterval = setInterval(() => {
+                if (game.paused) return;
+
+                effectFrame++;
+                if (effectFrame >= effectDuration) {
+                    clearInterval(nuclearInterval);
+                    return;
+                }
+
+                // Draw nuclear flash effect (will be rendered in gameLoop)
+                game.nuclearEffect = {
+                    active: true,
+                    frame: effectFrame,
+                    maxFrame: effectDuration
+                };
+            }, 1000 / 60);
+        }
+
         function getTowerAt(x, y) {
             for (let tower of towers) {
                 const distance = Math.sqrt((x - tower.x) ** 2 + (y - tower.y) ** 2);
@@ -1230,19 +1422,21 @@
             // Check for wave completion (immediate check, no delay)
             const checkWaveComplete = setInterval(() => {
                 if (enemies.length === 0 && game.waveActive) {
-                    game.wave++;
                     game.waveActive = false;
                     const bonus = 40 + (game.wave * 6); // Better wave completion bonus
                     game.gold += bonus;
-                    
-                    // Check for map progression
+
+                    // Check for map progression BEFORE incrementing wave
                     const mapChanged = checkMapProgression();
-                    
+
+                    // Increment wave after checking map progression
+                    game.wave++;
+
                     // Start auto-wave countdown if enabled and no map change
                     if (game.autoWave && !mapChanged) {
                         game.autoWaveCountdown = 180; // 3 seconds
                     }
-                    
+
                     clearInterval(checkWaveComplete);
                     updateUI();
                 }
@@ -1584,25 +1778,80 @@
         function updateProjectiles() {
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 const proj = projectiles[i];
-                
+
+                // Handle bomb projectiles (stationary area damage)
+                if (proj.isBomb) {
+                    proj.lifetime--;
+
+                    // Check for enemies in radius
+                    for (let enemy of enemies) {
+                        const dist = Math.sqrt((enemy.x - proj.x) ** 2 + (enemy.y - proj.y) ** 2);
+                        if (dist <= proj.radius) {
+                            const destroyed = enemy.takeDamage(proj.damage);
+                            if (destroyed) {
+                                if (enemy.type === 'spiderQueen' && enemy.abilities.includes('spawn_on_death')) {
+                                    spawnBabySpiders(enemy.x, enemy.y);
+                                }
+                                enemies.splice(enemies.indexOf(enemy), 1);
+                            }
+                            // Bomb explodes after hitting
+                            projectiles.splice(i, 1);
+                            break;
+                        }
+                    }
+
+                    // Remove bomb after lifetime expires
+                    if (proj.lifetime <= 0) {
+                        projectiles.splice(i, 1);
+                    }
+                    continue;
+                }
+
                 const dx = proj.targetX - proj.x;
                 const dy = proj.targetY - proj.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                if (distance < proj.speed) {
-                    // Hit target
-                    if (proj.target && enemies.includes(proj.target)) {
-                        // Handle wind spell effect
-                        if (proj.spellType === 'wind') {
-                            // Push enemy all the way back to the beginning of the path!
-                            const currentPath = getCurrentPath();
-                            proj.target.pathIndex = 0;
-                            proj.target.x = currentPath[0].x;
-                            proj.target.y = currentPath[0].y;
 
-                            // Wind spell does normal damage and provides massive utility
+                if (distance < proj.speed) {
+                    // Hit target or destination
+
+                    // Scatter shot hits first enemy in range
+                    if (proj.spellType === 'scatterShot' && !proj.target) {
+                        let hitEnemy = false;
+                        for (let enemy of enemies) {
+                            const dist = Math.sqrt((enemy.x - proj.x) ** 2 + (enemy.y - proj.y) ** 2);
+                            if (dist <= 30) {
+                                const destroyed = enemy.takeDamage(proj.damage);
+                                if (destroyed) {
+                                    if (enemy.type === 'spiderQueen' && enemy.abilities.includes('spawn_on_death')) {
+                                        spawnBabySpiders(enemy.x, enemy.y);
+                                    }
+                                    enemies.splice(enemies.indexOf(enemy), 1);
+                                }
+                                hitEnemy = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (proj.target && enemies.includes(proj.target)) {
+                        // Handle wind spell effect (bosses 3 and 4 are immune)
+                        if (proj.spellType === 'wind') {
+                            const isWindImmune = proj.target.type === 'lich' || proj.target.type === 'spiderQueen';
+
+                            if (!isWindImmune) {
+                                // Push enemy all the way back to the beginning of the path!
+                                const currentPath = getCurrentPath();
+                                proj.target.pathIndex = 0;
+                                proj.target.x = currentPath[0].x;
+                                proj.target.y = currentPath[0].y;
+                            }
+
+                            // Wind spell does normal damage regardless of immunity
                             const destroyed = proj.target.takeDamage(proj.damage);
                             if (destroyed) {
+                                if (proj.target.type === 'spiderQueen' && proj.target.abilities.includes('spawn_on_death')) {
+                                    spawnBabySpiders(proj.target.x, proj.target.y);
+                                }
                                 enemies.splice(enemies.indexOf(proj.target), 1);
                             }
                         } else {
@@ -1626,6 +1875,13 @@
                 } else {
                     proj.x += (dx / distance) * proj.speed;
                     proj.y += (dy / distance) * proj.speed;
+                }
+            }
+
+            // Update ability cooldowns
+            for (let abilityName in game.heroAbilities) {
+                if (game.heroAbilities[abilityName].cooldown > 0) {
+                    game.heroAbilities[abilityName].cooldown--;
                 }
             }
         }
@@ -1922,6 +2178,49 @@
         
         function drawProjectiles() {
             for (let proj of projectiles) {
+                // Bomb projectiles (stationary with pulsing effect)
+                if (proj.isBomb) {
+                    const pulseSize = 1 + Math.sin(Date.now() / 100) * 0.2;
+
+                    // Draw explosion radius
+                    ctx.strokeStyle = 'rgba(255, 69, 0, 0.3)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, proj.radius * pulseSize, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // Draw bomb
+                    ctx.fillStyle = '#2F4F4F';
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Draw fuse
+                    ctx.fillStyle = '#FF4500';
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y - 8, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    continue;
+                }
+
+                // Scatter shot projectiles (glowing golden shots)
+                if (proj.spellType === 'scatterShot') {
+                    // Glow effect
+                    ctx.fillStyle = 'rgba(255, 215, 0, 0.5)';
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Core
+                    ctx.fillStyle = '#FFD700';
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    continue;
+                }
+
                 // Catapult projectiles (rocks with optional fire)
                 if (proj.towerType === 'catapult') {
                     // Draw rock
@@ -2143,6 +2442,51 @@
             } else {
                 autoWaveStatus.textContent = `Manual mode - Click to start each wave`;
             }
+
+            // Update hero abilities section
+            const heroAbilitiesSection = document.getElementById('heroAbilitiesSection');
+            const maxLevelHero = getMaxLevelHero();
+
+            if (maxLevelHero && !game.placementMode) {
+                heroAbilitiesSection.style.display = 'block';
+
+                // Update each ability button and cooldown display
+                for (let abilityName in heroAbilityData) {
+                    const ability = heroAbilityData[abilityName];
+                    const abilityState = game.heroAbilities[abilityName];
+                    const button = document.getElementById(abilityName + 'Button');
+                    const cooldownDiv = document.getElementById(abilityName + 'Cooldown');
+
+                    // Check if button and cooldownDiv exist
+                    if (!button || !cooldownDiv) continue;
+
+                    const canAfford = game.gold >= ability.cost;
+                    const onCooldown = abilityState.cooldown > 0;
+
+                    button.disabled = !canAfford || onCooldown;
+
+                    // Update button background based on affordability
+                    if (onCooldown) {
+                        button.style.opacity = '0.5';
+                    } else if (canAfford) {
+                        button.style.opacity = '1';
+                    } else {
+                        button.style.opacity = '0.6';
+                    }
+
+                    // Update cooldown text
+                    if (onCooldown) {
+                        const secondsLeft = Math.ceil(abilityState.cooldown / 60);
+                        cooldownDiv.textContent = `⏳ Cooldown: ${secondsLeft}s`;
+                    } else if (abilityState.unlocked) {
+                        cooldownDiv.textContent = '✓ Ready!';
+                    } else {
+                        cooldownDiv.textContent = ability.description;
+                    }
+                }
+            } else {
+                heroAbilitiesSection.style.display = 'none';
+            }
         }
         
         function gameLoop() {
@@ -2202,6 +2546,32 @@
             // Show boss warning screen
             if (game.bossWarning) {
                 showBossWarning();
+            }
+
+            // Show nuclear effect
+            if (game.nuclearEffect && game.nuclearEffect.active) {
+                const progress = game.nuclearEffect.frame / game.nuclearEffect.maxFrame;
+                const fadeIn = Math.min(progress * 3, 1);
+                const fadeOut = Math.max(1 - ((progress - 0.5) * 2), 0);
+                const alpha = progress < 0.5 ? fadeIn : fadeOut;
+
+                // White flash
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Mushroom cloud effect
+                if (progress > 0.3) {
+                    ctx.fillStyle = `rgba(255, 69, 0, ${alpha * 0.5})`;
+                    const cloudSize = (progress - 0.3) * 600;
+                    ctx.beginPath();
+                    ctx.arc(canvas.width/2, canvas.height/2, cloudSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Clear effect when done
+                if (game.nuclearEffect.frame >= game.nuclearEffect.maxFrame) {
+                    game.nuclearEffect = null;
+                }
             }
 
             // Check victory
