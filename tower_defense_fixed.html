@@ -310,7 +310,55 @@
                 icon: "☢️"
             }
         };
-        
+
+        // Max tower special abilities (unlocked when tower reaches level 4)
+        const maxTowerAbilityData = {
+            wizard: {
+                name: "🌀 Arcane Storm",
+                cost: 500,
+                cooldownTime: 900, // 15 seconds
+                description: "Create a storm that damages enemies in a large area",
+                damage: 80,
+                radius: 150,
+                duration: 180 // 3 seconds
+            },
+            archer: {
+                name: "🎯 Volley",
+                cost: 400,
+                cooldownTime: 720, // 12 seconds
+                description: "Fire 10 arrows that seek nearby enemies",
+                arrowCount: 10,
+                damage: 60
+            },
+            ninja: {
+                name: "⚡ Shadow Strike",
+                cost: 600,
+                cooldownTime: 600, // 10 seconds
+                description: "Teleport and deal massive damage to 3 enemies",
+                targetCount: 3,
+                damage: 200
+            },
+            cannon: {
+                name: "💎 Crystal Nova",
+                cost: 700,
+                cooldownTime: 1200, // 20 seconds
+                description: "Explode crystals that slow and damage enemies",
+                damage: 100,
+                radius: 120,
+                slowDuration: 240 // 4 seconds slow
+            },
+            catapult: {
+                name: "🔥 Inferno",
+                cost: 800,
+                cooldownTime: 1080, // 18 seconds
+                description: "Launch a massive fireball that burns everything",
+                damage: 150,
+                radius: 100,
+                burnDamage: 40,
+                burnDuration: 300 // 5 seconds burn
+            }
+        };
+
         // Map definitions with different themes and objectives
         const mapData = [
             {
@@ -560,11 +608,22 @@
                 this.target = null;
                 this.isSelected = false;
                 this.animationFrame = 0;
+                this.abilityCooldown = 0; // Cooldown for max tower special ability
             }
             
             upgrade() {
                 if (this.level < 3) {
                     const upgradeCost = this.getUpgradeCost();
+
+                    // Check if upgrading to max level (level 3)
+                    if (this.level === 2) {
+                        // Check if there's already a max level tower of this type
+                        const maxTowersOfType = towers.filter(t => t.type === this.type && t.level === 3).length;
+                        if (maxTowersOfType >= 1) {
+                            return false; // Can't have more than 1 max tower per type
+                        }
+                    }
+
                     if (game.gold >= upgradeCost) {
                         game.gold -= upgradeCost;
                         this.level++;
@@ -574,15 +633,24 @@
                 }
                 return false;
             }
-            
+
             getUpgradeCost() {
                 if (this.level >= 3) return 0;
                 const baseCost = towerTypes[this.type].baseCost;
                 return Math.floor(baseCost * (1.5 ** (this.level + 1)));
             }
-            
+
             canUpgrade() {
-                return this.level < 3 && game.gold >= this.getUpgradeCost();
+                if (this.level >= 3) return false;
+                if (game.gold < this.getUpgradeCost()) return false;
+
+                // Check if upgrading to max level
+                if (this.level === 2) {
+                    const maxTowersOfType = towers.filter(t => t.type === this.type && t.level === 3).length;
+                    if (maxTowersOfType >= 1) return false;
+                }
+
+                return true;
             }
             
             update() {
@@ -1247,6 +1315,138 @@
             }, 1000 / 60);
         }
 
+        // Max Tower Ability Functions
+        function useMaxTowerAbility(tower) {
+            if (tower.level !== 3) return; // Must be max level
+            if (tower.abilityCooldown > 0) return; // On cooldown
+            if (tower.type === 'hero') return; // Hero uses different system
+
+            const ability = maxTowerAbilityData[tower.type];
+            if (!ability) return;
+
+            if (game.gold < ability.cost) return;
+
+            // Spend gold and start cooldown
+            game.gold -= ability.cost;
+            tower.abilityCooldown = ability.cooldownTime;
+
+            // Execute ability based on tower type
+            switch(tower.type) {
+                case 'wizard':
+                    activateArcaneStorm(tower);
+                    break;
+                case 'archer':
+                    activateVolley(tower);
+                    break;
+                case 'ninja':
+                    activateShadowStrike(tower);
+                    break;
+                case 'cannon':
+                    activateCrystalNova(tower);
+                    break;
+                case 'catapult':
+                    activateInferno(tower);
+                    break;
+            }
+
+            updateUI();
+        }
+
+        function activateArcaneStorm(tower) {
+            const ability = maxTowerAbilityData.wizard;
+            // Create a storm effect that damages enemies over time
+            projectiles.push({
+                x: tower.x,
+                y: tower.y,
+                targetX: tower.x,
+                targetY: tower.y,
+                damage: ability.damage,
+                radius: ability.radius,
+                speed: 0,
+                spellType: 'arcaneStorm',
+                towerType: 'wizard',
+                isAbility: true,
+                isStorm: true,
+                lifetime: ability.duration
+            });
+        }
+
+        function activateVolley(tower) {
+            const ability = maxTowerAbilityData.archer;
+            // Fire seeking arrows
+            const nearbyEnemies = enemies.slice(0, ability.arrowCount);
+            for (let enemy of nearbyEnemies) {
+                projectiles.push({
+                    x: tower.x,
+                    y: tower.y,
+                    targetX: enemy.x,
+                    targetY: enemy.y,
+                    target: enemy,
+                    damage: ability.damage,
+                    speed: 12,
+                    spellType: 'volley',
+                    towerType: 'archer',
+                    isAbility: true
+                });
+            }
+        }
+
+        function activateShadowStrike(tower) {
+            const ability = maxTowerAbilityData.ninja;
+            // Deal massive damage to closest enemies
+            const sortedEnemies = enemies.slice().sort((a, b) => {
+                const distA = Math.sqrt((a.x - tower.x) ** 2 + (a.y - tower.y) ** 2);
+                const distB = Math.sqrt((b.x - tower.x) ** 2 + (b.y - tower.y) ** 2);
+                return distA - distB;
+            });
+
+            for (let i = 0; i < Math.min(ability.targetCount, sortedEnemies.length); i++) {
+                const enemy = sortedEnemies[i];
+                const destroyed = enemy.takeDamage(ability.damage);
+                if (destroyed) {
+                    if (enemy.type === 'spiderQueen' && enemy.abilities.includes('spawn_on_death')) {
+                        spawnBabySpiders(enemy.x, enemy.y);
+                    }
+                    enemies.splice(enemies.indexOf(enemy), 1);
+                }
+            }
+        }
+
+        function activateCrystalNova(tower) {
+            const ability = maxTowerAbilityData.cannon;
+            // Create explosion that damages and slows
+            for (let enemy of enemies) {
+                const dist = Math.sqrt((enemy.x - tower.x) ** 2 + (enemy.y - tower.y) ** 2);
+                if (dist <= ability.radius) {
+                    enemy.takeDamage(ability.damage);
+                    enemy.slowed = true;
+                    enemy.slowDuration = ability.slowDuration;
+                    enemy.slowAmount = 0.5; // 50% speed reduction
+                }
+            }
+        }
+
+        function activateInferno(tower) {
+            const ability = maxTowerAbilityData.catapult;
+            // Launch massive fireball
+            projectiles.push({
+                x: tower.x,
+                y: tower.y,
+                targetX: tower.x,
+                targetY: tower.y,
+                damage: ability.damage,
+                radius: ability.radius,
+                speed: 0,
+                spellType: 'inferno',
+                towerType: 'catapult',
+                isAbility: true,
+                isInferno: true,
+                lifetime: 120, // 2 seconds
+                burnDamage: ability.burnDamage,
+                burnDuration: ability.burnDuration
+            });
+        }
+
         function getTowerAt(x, y) {
             for (let tower of towers) {
                 const distance = Math.sqrt((x - tower.x) ** 2 + (y - tower.y) ** 2);
@@ -1410,6 +1610,13 @@
             // Normal mode: purchase with gold
             else {
                 const cost = towerTypes[game.selectedTowerType].baseCost;
+
+                // Check tower limits (4 per type max)
+                const towersOfType = towers.filter(t => t.type === game.selectedTowerType).length;
+                if (towersOfType >= 4) {
+                    return; // Can't place more than 4 of the same type
+                }
+
                 if (game.gold >= cost) {
                     towers.push(new Tower(x, y, game.selectedTowerType));
                     game.gold -= cost;
